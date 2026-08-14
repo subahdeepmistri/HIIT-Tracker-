@@ -1,0 +1,251 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import React, { useState } from 'react';
+import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { db } from '@/src/data/database';
+import { buildExportRows, toCsv, toJson } from '@/src/data/export';
+import { useVolt } from '@/src/features/app/VoltProvider';
+import { Body, Button, Card, Heading, Label, SegmentedControl, Strong } from '@/src/ui/components/primitives';
+import { syncReminders } from '@/src/ui/notifications';
+import { useTheme } from '@/src/ui/theme/ThemeProvider';
+
+export default function ProfileScreen() {
+  const theme = useTheme();
+  const { settings } = useVolt();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function patch(next: Partial<typeof settings>) {
+    await db.settings.update(next);
+    if (next.remindersEnabled != null || next.reminderHour != null || next.reminderMinute != null) {
+      await syncReminders({ ...settings, ...next });
+    }
+  }
+
+  async function exportData(format: 'json' | 'csv') {
+    const sessions = db.sessions.list();
+    const intervals = sessions.flatMap((session) => db.intervals.listBySession(session.id));
+    const rows = buildExportRows(sessions, intervals);
+    const payload =
+      format === 'csv'
+        ? toCsv(rows)
+        : toJson({
+            exportedAt: new Date().toISOString(),
+            note: 'completionPercentage is derived from plannedDuration and actualDuration.',
+            sessions,
+            intervals,
+            performance: db.performance.list(),
+            rows,
+          });
+    const file = `${FileSystem.cacheDirectory}volt-export.${format}`;
+    await FileSystem.writeAsStringAsync(file, payload);
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(file);
+    } else {
+      Alert.alert('Export ready', `Saved to ${file}`);
+    }
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }} edges={['top']}>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }}>
+        <Heading>Profile</Heading>
+        <Body style={{ color: theme.color.muted }}>Local-only athlete profile. No account required.</Body>
+
+        <Card>
+          <Label>Theme</Label>
+          <View style={{ marginTop: 12 }}>
+            <SegmentedControl
+              value={settings.theme}
+              onChange={(value) => void patch({ theme: value as typeof settings.theme })}
+              options={[
+                { label: 'Dark', value: 'dark' },
+                { label: 'Light', value: 'light' },
+                { label: 'System', value: 'system' },
+              ]}
+            />
+          </View>
+        </Card>
+
+        <Card>
+          <Label>Distance units</Label>
+          <View style={{ marginTop: 12 }}>
+            <SegmentedControl
+              value={settings.distanceUnit}
+              onChange={(value) => void patch({ distanceUnit: value as typeof settings.distanceUnit })}
+              options={[
+                { label: 'm', value: 'm' },
+                { label: 'km', value: 'km' },
+                { label: 'mi', value: 'mi' },
+              ]}
+            />
+          </View>
+        </Card>
+
+        <Card>
+          <Label>Default HIIT</Label>
+          <Stepper
+            label="Countdown"
+            value={settings.countdownSeconds}
+            suffix="s"
+            onChange={(value) => void patch({ countdownSeconds: value })}
+          />
+          <Stepper
+            label="Work"
+            value={settings.defaultWorkSeconds}
+            suffix="s"
+            onChange={(value) => void patch({ defaultWorkSeconds: value })}
+          />
+          <Stepper
+            label="Rest"
+            value={settings.defaultRestSeconds}
+            suffix="s"
+            onChange={(value) => void patch({ defaultRestSeconds: value })}
+          />
+          <Stepper
+            label="Rounds"
+            value={settings.defaultRounds}
+            onChange={(value) => void patch({ defaultRounds: Math.max(1, value) })}
+          />
+        </Card>
+
+        <Card>
+          <Label>Cues</Label>
+          <Toggle label="Sound" value={settings.soundEnabled} onChange={(value) => void patch({ soundEnabled: value })} />
+          <Toggle label="Haptics" value={settings.hapticsEnabled} onChange={(value) => void patch({ hapticsEnabled: value })} />
+          <Toggle
+            label="Countdown sound"
+            value={settings.countdownSound}
+            onChange={(value) => void patch({ countdownSound: value })}
+          />
+          <Toggle
+            label="Rest ending alert"
+            value={settings.restEndingAlert}
+            onChange={(value) => void patch({ restEndingAlert: value })}
+          />
+          <Toggle
+            label="Completion sound"
+            value={settings.completionSound}
+            onChange={(value) => void patch({ completionSound: value })}
+          />
+          <Toggle
+            label="Reduce motion"
+            value={settings.reducedMotion}
+            onChange={(value) => void patch({ reducedMotion: value })}
+          />
+        </Card>
+
+        <Card>
+          <Label>Reminders</Label>
+          <Body style={{ marginTop: 8, color: theme.color.muted }}>
+            Optional. Off by default. Never framed as guilt.
+          </Body>
+          <Toggle
+            label="Daily reminder"
+            value={settings.remindersEnabled}
+            onChange={(value) => void patch({ remindersEnabled: value })}
+          />
+          <Stepper
+            label="Hour"
+            value={settings.reminderHour}
+            onChange={(value) => void patch({ reminderHour: Math.min(23, Math.max(0, value)) })}
+          />
+          <Stepper
+            label="Minute"
+            value={settings.reminderMinute}
+            onChange={(value) => void patch({ reminderMinute: Math.min(59, Math.max(0, value)) })}
+          />
+        </Card>
+
+        <Card>
+          <Label>Data</Label>
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <Button label="Export JSON" variant="ghost" onPress={() => void exportData('json')} />
+            <Button label="Export CSV" variant="ghost" onPress={() => void exportData('csv')} />
+            <Button
+              label={confirmDelete ? 'Tap again to delete all workout data' : 'Delete all workout data'}
+              variant="danger"
+              onPress={() => {
+                if (!confirmDelete) {
+                  setConfirmDelete(true);
+                  return;
+                }
+                void db.deleteWorkoutData();
+                setConfirmDelete(false);
+              }}
+            />
+          </View>
+        </Card>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+  const theme = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 48 }}>
+      <Strong>{label}</Strong>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: theme.color.accent, false: theme.color.line }}
+        thumbColor={theme.color.text}
+      />
+    </View>
+  );
+}
+
+function Stepper({
+  label,
+  value,
+  suffix,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 }}>
+      <Strong>{label}</Strong>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Decrease ${label}`}
+          onPress={() => onChange(Math.max(0, value - 1))}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.color.surface2,
+            borderRadius: 12,
+          }}>
+          <Strong>−</Strong>
+        </Pressable>
+        <Body>
+          {value}
+          {suffix ? ` ${suffix}` : ''}
+        </Body>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Increase ${label}`}
+          onPress={() => onChange(value + 1)}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.color.surface2,
+            borderRadius: 12,
+          }}>
+          <Strong>+</Strong>
+        </Pressable>
+      </View>
+    </View>
+  );
+}

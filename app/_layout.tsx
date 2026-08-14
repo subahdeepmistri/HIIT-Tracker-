@@ -1,56 +1,44 @@
-import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React from 'react';
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { VoltRoot, useVolt } from '@/src/features/app/VoltProvider';
+import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
-
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+export { ErrorBoundary } from 'expo-router';
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return <RootLayoutNav />;
+  return (
+    <VoltRoot>
+      <RootNav />
+    </VoltRoot>
+  );
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+function RootNav() {
+  const theme = useTheme();
+  const { settings } = useVolt();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    <>
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.color.bg },
+          animation: settings.reducedMotion ? 'none' : 'default',
+        }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="workouts/[id]" />
+        <Stack.Screen name="workouts/builder" />
+        <Stack.Screen name="exercises/index" />
+        <Stack.Screen name="exercises/create" />
+        <Stack.Screen name="live/[sessionId]" options={{ gestureEnabled: false, animation: 'fade' }} />
+        <Stack.Screen name="summary/[sessionId]" />
+        <Stack.Screen name="history/[sessionId]" />
+        <Stack.Screen name="calendar" />
       </Stack>
-    </ThemeProvider>
+    </>
   );
 }

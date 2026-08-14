@@ -1,31 +1,190 @@
-import { StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
+import { weekStats, greeting } from '@/src/engine/analytics/dashboard';
+import { planWorkout } from '@/src/engine/workout/planner';
+import { useVolt } from '@/src/features/app/VoltProvider';
+import { Body, Button, Card, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { useTheme } from '@/src/ui/theme/ThemeProvider';
+import { Units } from '@/src/domain/units';
 
-export default function TabOneScreen() {
+export default function HomeScreen() {
+  const theme = useTheme();
+  const router = useRouter();
+  const { db, controller, revision } = useVolt();
+  const [now] = useState(() => new Date());
+  const sessions = db.sessions.list();
+  const performance = db.performance.list();
+  const week = weekStats(sessions, performance, now.getTime());
+  const workouts = db.workouts.list();
+  const last = sessions[0];
+  const featured = (last && db.workouts.get(last.workoutId)) || workouts[0];
+  const plan = featured ? db.workouts.plan(featured.id) : null;
+  const planned = plan
+    ? planWorkout({
+        workout: plan.workout,
+        items: plan.exercises,
+        countdownSeconds: db.settings.get().countdownSeconds,
+      })
+    : null;
+  const interrupted = db.sessions.inProgress();
+
+  useFocusEffect(
+    useCallback(() => {
+      void revision;
+    }, [revision]),
+  );
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tab One</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/index.tsx" />
-    </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }} edges={['top']}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 20 }}>
+        <View>
+          <Label>{greeting(now)}</Label>
+          <Heading style={{ marginTop: 6 }}>Ready to train?</Heading>
+        </View>
+
+        {interrupted ? (
+          <Card style={{ borderColor: theme.color.warn, borderWidth: 1 }}>
+            <Label>Interrupted session</Label>
+            <Strong style={{ marginTop: 6 }}>{interrupted.workoutNameSnapshot}</Strong>
+            <Body style={{ marginTop: 6, color: theme.color.muted }}>
+              This workout did not finish. Resume, save what you did, or discard it.
+            </Body>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+              <Button
+                label="Resume"
+                onPress={async () => {
+                  await controller.hydrateFromStorage();
+                  router.push(`/live/${interrupted.id}`);
+                }}
+              />
+              <Button
+                label="Save partial"
+                variant="ghost"
+                onPress={async () => {
+                  await controller.hydrateFromStorage();
+                  const result = await controller.savePartial();
+                  router.push(`/summary/${result.session.id}`);
+                }}
+              />
+              <Button
+                label="Discard"
+                variant="danger"
+                onPress={() => {
+                  Alert.alert('Discard session?', 'Recorded intervals from this run will be deleted.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Discard',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await controller.hydrateFromStorage();
+                        await controller.discard();
+                      },
+                    },
+                  ]);
+                }}
+              />
+            </View>
+          </Card>
+        ) : null}
+
+        {plan && planned ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Start ${plan.workout.name}`}
+            onPress={() => router.push(`/workouts/${plan.workout.id}`)}>
+            <Card style={{ backgroundColor: theme.color.surface, gap: 8 }}>
+              <Label>Today’s workout</Label>
+              <Heading style={{ fontSize: 36, lineHeight: 38 }}>{plan.workout.name}</Heading>
+              <Body style={{ color: theme.color.muted }}>
+                {Units.formatCompactDuration(planned.plannedDurationSeconds)} · {planned.rounds} rounds ·{' '}
+                {planned.exerciseCount} exercises
+              </Body>
+              <View style={{ marginTop: 12 }}>
+                <Button label="Start" large onPress={() => router.push(`/workouts/${plan.workout.id}`)} />
+              </View>
+            </Card>
+          </Pressable>
+        ) : (
+          <EmptyState
+            title="Build a session"
+            body="Create a HIIT workout to start tracking planned versus actual work."
+            action={<Button label="Create workout" onPress={() => router.push('/workouts/builder')} />}
+          />
+        )}
+
+        {week.workoutsCompleted > 0 ? (
+          <Card>
+            <Label>Your progress · this week</Label>
+            <View style={{ flexDirection: 'row', marginTop: 16, gap: 12 }}>
+              <MiniStat label="Workouts" value={String(week.workoutsCompleted)} />
+              <MiniStat label="Active" value={Units.formatCompactDuration(week.totalActiveSeconds)} />
+              <MiniStat
+                label="Completion"
+                value={week.averageCompletion == null ? '—' : Units.formatPercent(week.averageCompletion)}
+              />
+            </View>
+          </Card>
+        ) : (
+          <Card>
+            <Label>Your progress</Label>
+            <Body style={{ marginTop: 8 }}>
+              No sessions recorded this week. Stats appear after you complete a workout.
+            </Body>
+          </Card>
+        )}
+
+        <View>
+          <Label>Recent workouts</Label>
+          {sessions.filter((row) => row.status !== 'IN_PROGRESS' && row.status !== 'CANCELLED').length === 0 ? (
+            <Body style={{ marginTop: 8, color: theme.color.muted }}>Nothing logged yet.</Body>
+          ) : (
+            <View style={{ marginTop: 12, gap: 10 }}>
+              {sessions
+                .filter((row) => row.status !== 'IN_PROGRESS' && row.status !== 'CANCELLED')
+                .slice(0, 4)
+                .map((session) => {
+                  const record = db.performance.getBySession(session.id);
+                  return (
+                    <Pressable
+                      key={session.id}
+                      onPress={() => router.push(`/history/${session.id}`)}
+                      style={{
+                        backgroundColor: theme.color.surface,
+                        borderRadius: 16,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: theme.color.line,
+                      }}>
+                      <Strong>{session.workoutNameSnapshot}</Strong>
+                      <Body style={{ color: theme.color.muted, marginTop: 4 }}>
+                        {new Date(session.endedAt ?? session.startedAt).toLocaleDateString()} ·{' '}
+                        {record
+                          ? Units.formatCompactDuration(record.totalDurationSeconds)
+                          : Units.formatCompactDuration(((session.endedAt ?? session.startedAt) - session.startedAt) / 1000)}
+                        {record?.workCompletionPercent != null
+                          ? ` · ${Units.formatPercent(record.workCompletionPercent)}`
+                          : ''}
+                      </Body>
+                    </Pressable>
+                  );
+                })}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
-  },
-});
+function MiniStat({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
+  return (
+    <View style={{ flex: 1 }}>
+      <Label>{label}</Label>
+      <Strong style={{ marginTop: 4, fontFamily: theme.type.display, fontSize: 24 }}>{value}</Strong>
+    </View>
+  );
+}
