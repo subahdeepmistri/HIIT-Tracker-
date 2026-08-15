@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { VIDEO_DEMO_IDS, demoIdForLiveView } from '../src/features/live/exerciseDemoLogic';
+import {
+  VIDEO_DEMO_IDS,
+  canPlayDemoVideo,
+  demoIdForLiveView,
+  shouldAnimateDemoFrames,
+} from '../src/features/live/exerciseDemoLogic';
 
 describe('demoIdForLiveView', () => {
   it('shows the current exercise during work and countdown', () => {
@@ -26,5 +31,19 @@ describe('demoIdForLiveView', () => {
       'ex-push-ups',
       'ex-burpees',
     ]);
+  });
+
+  it('never uses expo-av video on web, where bundled MP4s render as an empty box', () => {
+    expect(canPlayDemoVideo('web', true)).toBe(false);
+    expect(canPlayDemoVideo('ios', true)).toBe(true);
+    expect(canPlayDemoVideo('android', true)).toBe(true);
+    expect(canPlayDemoVideo('ios', false)).toBe(false);
+  });
+
+  it('keeps the JPEG flipbook running unless a native video is covering it', () => {
+    expect(shouldAnimateDemoFrames({ frameCount: 2, intervalMs: 340 })).toBe(true);
+    expect(shouldAnimateDemoFrames({ frameCount: 2, intervalMs: 340, reducedMotion: true })).toBe(false);
+    expect(shouldAnimateDemoFrames({ frameCount: 2, intervalMs: 340, videoCovering: true })).toBe(false);
+    expect(shouldAnimateDemoFrames({ frameCount: 1, intervalMs: 340 })).toBe(false);
   });
 });
