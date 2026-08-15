@@ -6,6 +6,8 @@ import { WorkoutController } from '../../application/workoutController';
 import { DEFAULTS } from '../../config/defaults';
 import { db, type VoltDatabase } from '../../data/database';
 import type { UserSettings } from '../../domain/types';
+import { listenForWebInstall } from '../../pwa/install';
+import { registerWebApp } from '../../pwa/register';
 import { VoltThemeProvider, useVoltFonts } from '../../ui/theme/ThemeProvider';
 
 interface VoltContextValue {
@@ -47,6 +49,8 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    registerWebApp();
+    listenForWebInstall();
     let mounted = true;
     void (async () => {
       await db.init();

@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "HIIT Tracker",
   "short_name": "HIIT",
   "description": "Train. Track. Improve.",
@@ -8,6 +9,8 @@
   "orientation": "portrait",
   "background_color": "#07080A",
   "theme_color": "#07080A",
+  "lang": "en",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/icon-192.png",

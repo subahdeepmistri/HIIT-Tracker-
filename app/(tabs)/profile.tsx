@@ -9,6 +9,7 @@ import { db } from '@/src/data/database';
 import { buildExportRows, toCsv, toJson } from '@/src/data/export';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { resetOnboarding } from '@/src/features/onboarding/logic';
+import { useWebInstall } from '@/src/pwa/install';
 import { Body, Button, Card, Heading, Label, SegmentedControl, Strong } from '@/src/ui/components/primitives';
 import { syncReminders } from '@/src/ui/notifications';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -17,6 +18,7 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { settings } = useVolt();
+  const { canInstall, install } = useWebInstall();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function patch(next: Partial<typeof settings>) {
@@ -179,6 +181,20 @@ export default function ProfileScreen() {
             value={settings.reminderMinute}
             onChange={(value) => void patch({ reminderMinute: Math.min(59, Math.max(0, value)) })}
           />
+        </Card>
+
+        <Card>
+          <Label>Install app</Label>
+          <Body style={{ marginTop: 8, color: theme.color.muted }}>
+            {canInstall
+              ? 'Install HIIT Tracker on this phone. Chrome will use the high-resolution app icon.'
+              : 'On Chrome, use Install app in the menu after this page has been open for a moment. If you only see Add to Home screen, this site is still loading as a shortcut.'}
+          </Body>
+          {canInstall ? (
+            <View style={{ marginTop: 12 }}>
+              <Button label="Install HIIT Tracker" onPress={() => void install()} />
+            </View>
+          ) : null}
         </Card>
 
         <Card>
