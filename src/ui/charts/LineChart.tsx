@@ -13,7 +13,7 @@ export interface ChartPoint {
 
 export function LineChart({
   points,
-  height = 180,
+  height = 148,
   formatValue,
   accessibilityLabel,
 }: {
@@ -25,7 +25,7 @@ export function LineChart({
   const theme = useTheme();
   const width = 320;
   if (points.length === 0) {
-    return <Body>No recorded data in this range.</Body>;
+    return <Body style={{ color: theme.color.muted, marginTop: 8 }}>Not enough data</Body>;
   }
 
   const values = points.map((point) => point.value);
@@ -33,7 +33,7 @@ export function LineChart({
   const max = Math.max(...values);
   const span = max - min || 1;
   const padX = 16;
-  const padY = 20;
+  const padY = 22;
   const innerW = width - padX * 2;
   const innerH = height - padY * 2;
   const coords = points.map((point, index) => {
@@ -42,6 +42,10 @@ export function LineChart({
     return { ...point, x, y };
   });
   const polyline = coords.map((point) => `${point.x},${point.y}`).join(' ');
+  const latest = points[points.length - 1];
+  const latestText = latest
+    ? `${latest.label} · ${formatValue ? formatValue(latest.value) : Units.formatCompactDuration(latest.value)}`
+    : '';
 
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
@@ -69,13 +73,10 @@ export function LineChart({
           {points[points.length - 1]?.label}
         </SvgText>
       </Svg>
-      <View style={{ marginTop: 8 }}>
-        {points.map((point) => (
-          <Body key={point.label} style={{ fontSize: 13, color: theme.color.muted }}>
-            {point.label}: {formatValue ? formatValue(point.value) : Units.formatCompactDuration(point.value)}
-          </Body>
-        ))}
-      </View>
+      <Body style={{ color: theme.color.muted, fontSize: 13, marginTop: 6 }}>
+        Latest {latestText}
+        {points.length > 1 ? ` · ${points.length} sessions` : ''}
+      </Body>
     </View>
   );
 }

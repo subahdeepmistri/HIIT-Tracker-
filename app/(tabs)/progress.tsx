@@ -8,6 +8,7 @@ import { formatRecordValue, recordKindLabel } from '@/src/engine/records/persona
 import { recoveryGuidance } from '@/src/engine/recovery/guidance';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { LineChart } from '@/src/ui/charts/LineChart';
+import { ProgressTrack } from '@/src/ui/components/ProgressTrack';
 import { Body, Card, EmptyState, Heading, Label, SegmentedControl, Stat, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
@@ -16,19 +17,31 @@ export default function ProgressScreen() {
   const { db } = useVolt();
   const [range, setRange] = useState<RangeKey>('30');
   const now = Date.now();
-  const sessions = filterSessions(db.sessions.list(), range, now);
-  const performance = db.performance.list().filter((row) => sessions.some((session) => session.id === row.sessionId));
+  const allSessions = db.sessions.list();
+  const allPerformance = db.performance.list();
+  const sessions = filterSessions(allSessions, range, now);
+  const performance = allPerformance.filter((row) => sessions.some((session) => session.id === row.sessionId));
   const stats = dashboardStats(sessions, performance, now);
   const guidance = recoveryGuidance(
-    db.sessions.list().map((session) => ({ session, intervals: db.intervals.listBySession(session.id) })),
+    allSessions.map((session) => ({ session, intervals: db.intervals.listBySession(session.id) })),
     now,
   );
   const records = db.records.list();
+  const emptyRange = stats.sessionsRecorded === 0;
+  const durationTrend = trendPoints(allSessions, allPerformance, range, now, 'duration');
+  const completionTrend = trendPoints(allSessions, allPerformance, range, now, 'completion');
+  const activeTrend = trendPoints(allSessions, allPerformance, range, now, 'active');
+  const restTrend = trendPoints(allSessions, allPerformance, range, now, 'rest');
+  const repsTrend = trendPoints(allSessions, allPerformance, range, now, 'reps');
+  const scoreTrend = trendPoints(allSessions, allPerformance, range, now, 'score');
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }}>
         <Heading>Progress</Heading>
+        <Body style={{ color: theme.color.muted }}>
+          Built from recorded sessions only. Missing metrics stay empty.
+        </Body>
         <SegmentedControl
           value={range}
           onChange={(value) => setRange(value as RangeKey)}
@@ -40,22 +53,29 @@ export default function ProgressScreen() {
           ]}
         />
 
-        {stats.workoutsCompleted === 0 && sessions.length === 0 ? (
+        {emptyRange ? (
           <EmptyState
             title="No recorded work"
-            body="This dashboard only uses sessions you complete. Empty days stay empty — nothing is interpolated."
+            body="This range has no completed or partial sessions. Empty days stay empty — nothing is interpolated."
           />
         ) : (
           <>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
-                <Stat label="Workouts" value={String(stats.workoutsCompleted)} />
+                <Stat
+                  label="Completed"
+                  value={String(stats.workoutsCompleted)}
+                  hint={stats.partialWorkouts ? `${stats.partialWorkouts} partial` : undefined}
+                />
               </Card>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
                 <Stat label="Training time" value={Units.formatCompactDuration(stats.totalTrainingSeconds)} />
               </Card>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
                 <Stat label="Active time" value={Units.formatCompactDuration(stats.totalActiveSeconds)} />
+              </Card>
+              <Card style={{ flexGrow: 1, minWidth: '45%' }}>
+                <Stat label="Rest time" value={Units.formatCompactDuration(stats.totalRestSeconds)} />
               </Card>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
                 <Stat
@@ -68,48 +88,109 @@ export default function ProgressScreen() {
                 />
               </Card>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
+                <Stat label="Streak" value={`${stats.streak} day${stats.streak === 1 ? '' : 's'}`} />
+              </Card>
+              <Card style={{ flexGrow: 1, minWidth: '45%' }}>
                 <Stat
-                  label="Avg completion"
-                  value={stats.averageCompletion == null ? 'Not enough data' : Units.formatPercent(stats.averageCompletion)}
+                  label="Rounds"
+                  value={stats.totalRounds > 0 ? String(stats.totalRounds) : 'Not enough data'}
                 />
               </Card>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
-                <Stat label="Streak" value={`${stats.streak} day${stats.streak === 1 ? '' : 's'}`} />
+                <Stat
+                  label="Total reps"
+                  value={stats.totalReps == null ? 'Not enough data' : String(stats.totalReps)}
+                />
               </Card>
             </View>
 
             <Card>
-              <Label>Duration</Label>
-              <LineChart
-                points={trendPoints(db.sessions.list(), db.performance.list(), range, now, 'duration')}
-                accessibilityLabel="Workout duration trend"
-                formatValue={(value) => Units.formatCompactDuration(value)}
-              />
+              <Label>Recorded completion</Label>
+              <Body style={{ color: theme.color.muted, fontSize: 13, marginTop: 6, marginBottom: 14 }}>
+                Averages from stored interval rows in this range.
+              </Body>
+              <View style={{ gap: 16 }}>
+                <ProgressTrack
+                  label="Work"
+                  detail={
+                    stats.averageCompletion == null ? 'Not enough data' : Units.formatPercent(stats.averageCompletion)
+                  }
+                  value={stats.averageCompletion == null ? null : stats.averageCompletion / 100}
+                />
+                <ProgressTrack
+                  label="Intervals"
+                  detail={
+                    stats.averageIntervalCompletion == null
+                      ? 'Not enough data'
+                      : Units.formatPercent(stats.averageIntervalCompletion)
+                  }
+                  value={stats.averageIntervalCompletion == null ? null : stats.averageIntervalCompletion / 100}
+                />
+                <ProgressTrack
+                  label="Reps"
+                  detail={
+                    stats.averageRepCompletion == null
+                      ? 'Not enough data'
+                      : Units.formatPercent(stats.averageRepCompletion)
+                  }
+                  value={stats.averageRepCompletion == null ? null : stats.averageRepCompletion / 100}
+                />
+                <ProgressTrack
+                  label="Performance"
+                  detail={
+                    stats.averageScore == null ? 'Not enough data' : String(Math.round(stats.averageScore))
+                  }
+                  value={stats.averageScore == null ? null : stats.averageScore / 100}
+                />
+              </View>
+              <View style={{ marginTop: 18 }}>
+                <Label>Work : Rest</Label>
+                <Strong style={{ fontFamily: theme.type.display, fontSize: 32, marginTop: 6 }}>
+                  {stats.averageWorkRestRatio == null ? 'Not enough data' : Units.formatRatio(stats.averageWorkRestRatio)}
+                </Strong>
+              </View>
             </Card>
-            <Card>
-              <Label>Completion %</Label>
-              <LineChart
-                points={trendPoints(db.sessions.list(), db.performance.list(), range, now, 'completion')}
-                accessibilityLabel="Completion percentage trend"
-                formatValue={(value) => Units.formatPercent(value)}
-              />
-            </Card>
-            <Card>
-              <Label>Active time</Label>
-              <LineChart
-                points={trendPoints(db.sessions.list(), db.performance.list(), range, now, 'active')}
-                accessibilityLabel="Active time trend"
-                formatValue={(value) => Units.formatCompactDuration(value)}
-              />
-            </Card>
-            <Card>
-              <Label>Repetitions</Label>
-              <LineChart
-                points={trendPoints(db.sessions.list(), db.performance.list(), range, now, 'reps')}
-                accessibilityLabel="Repetition trend"
+
+            <TrendCard
+              title="Duration"
+              points={durationTrend}
+              formatValue={(value) => Units.formatCompactDuration(value)}
+              label="Workout duration trend"
+            />
+            <TrendCard
+              title="Work completion"
+              points={completionTrend}
+              formatValue={(value) => Units.formatPercent(value)}
+              label="Completion percentage trend"
+            />
+            <TrendCard
+              title="Active time"
+              points={activeTrend}
+              formatValue={(value) => Units.formatCompactDuration(value)}
+              label="Active time trend"
+            />
+            <TrendCard
+              title="Rest time"
+              points={restTrend}
+              formatValue={(value) => Units.formatCompactDuration(value)}
+              label="Rest time trend"
+            />
+            {repsTrend.length > 0 ? (
+              <TrendCard
+                title="Repetitions"
+                points={repsTrend}
                 formatValue={(value) => `${Math.round(value)}`}
+                label="Repetition trend"
               />
-            </Card>
+            ) : null}
+            {scoreTrend.length > 0 ? (
+              <TrendCard
+                title="Performance score"
+                points={scoreTrend}
+                formatValue={(value) => String(Math.round(value))}
+                label="Performance score trend"
+              />
+            ) : null}
           </>
         )}
 
@@ -147,5 +228,24 @@ export default function ProgressScreen() {
         </Card>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function TrendCard({
+  title,
+  points,
+  formatValue,
+  label,
+}: {
+  title: string;
+  points: Array<{ label: string; value: number }>;
+  formatValue: (value: number) => string;
+  label: string;
+}) {
+  return (
+    <Card>
+      <Label>{title}</Label>
+      <LineChart points={points} accessibilityLabel={label} formatValue={formatValue} />
+    </Card>
   );
 }

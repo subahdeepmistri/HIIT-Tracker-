@@ -9,6 +9,7 @@ import { KeepAwakeWhile, useVolt } from '@/src/features/app/VoltProvider';
 import { demoIdForLiveView } from '@/src/features/live/exerciseDemoLogic';
 import { ExerciseDemo } from '@/src/features/live/ExerciseDemo';
 import { PhaseBadge } from '@/src/ui/components/PhaseBadge';
+import { ProgressTrack } from '@/src/ui/components/ProgressTrack';
 import { playCue } from '@/src/ui/cues';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import type { LiveView } from '@/src/engine/workout/stateMachine';
@@ -145,23 +146,18 @@ export default function LiveWorkoutScreen() {
               ? Math.ceil(view.remainingMs / 1000)
               : Units.formatTimer(view.remainingMs)}
           </Text>
-          <View
-            accessible
-            accessibilityLabel={`Progress ${Math.round(view.progress * 100)} percent`}
-            style={{
-              width: '100%',
-              height: 16,
-              borderRadius: 999,
-              backgroundColor: theme.color.surface2,
-              overflow: 'hidden',
-              marginTop: 12,
-            }}>
-            <View
-              style={{
-                width: `${Math.max(4, view.progress * 100)}%`,
-                height: '100%',
-                backgroundColor: isRest ? theme.color.rest : theme.color.accent,
-              }}
+          <View style={{ width: '100%', marginTop: 16, gap: 14 }}>
+            <ProgressTrack
+              label={view.phase === 'COUNTDOWN' ? 'Countdown' : 'Interval'}
+              detail={view.intervalDetail}
+              value={view.intervalProgress}
+              color={isRest ? theme.color.rest : theme.color.accent}
+            />
+            <ProgressTrack
+              label="Workout"
+              detail={view.workoutDetail}
+              value={view.workoutProgress}
+              color={theme.color.accent}
             />
           </View>
           {view.targetLabel ? (

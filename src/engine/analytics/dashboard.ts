@@ -23,10 +23,19 @@ export function filterSessions(sessions: WorkoutSession[], range: RangeKey, now:
 
 export interface DashboardStats {
   workoutsCompleted: number;
+  partialWorkouts: number;
+  sessionsRecorded: number;
   totalTrainingSeconds: number;
   totalActiveSeconds: number;
+  totalRestSeconds: number;
+  totalReps: number | null;
+  totalRounds: number;
   averageDurationSeconds: number | null;
   averageCompletion: number | null;
+  averageRepCompletion: number | null;
+  averageIntervalCompletion: number | null;
+  averageScore: number | null;
+  averageWorkRestRatio: number | null;
   streak: number;
 }
 
@@ -45,17 +54,43 @@ export function dashboardStats(
   const totalActiveSeconds = performance
     .filter((row) => completed.some((session) => session.id === row.sessionId))
     .reduce((sum, row) => sum + row.totalActiveSeconds, 0);
-  const completions = performance
-    .map((row) => row.workCompletionPercent)
+  const completions = meanOf(performance.map((row) => row.workCompletionPercent));
+  const repCompletions = meanOf(performance.map((row) => row.repCompletionPercent));
+  const intervalCompletions = meanOf(performance.map((row) => row.intervalCompletionRate));
+  const scores = meanOf(performance.map((row) => row.performanceScore));
+  const ratios = meanOf(performance.map((row) => row.workRestRatio));
+  const reps = performance
+    .map((row) => row.totalReps)
     .filter((value): value is number => value != null);
+  const totalRestSeconds = performance
+    .filter((row) => completed.some((session) => session.id === row.sessionId))
+    .reduce((sum, row) => sum + row.totalRestSeconds, 0);
+  const totalRounds = performance
+    .filter((row) => completed.some((session) => session.id === row.sessionId))
+    .reduce((sum, row) => sum + row.completedRounds, 0);
   return {
     workoutsCompleted: completed.filter((session) => session.status === 'COMPLETED').length,
+    partialWorkouts: completed.filter((session) => session.status === 'PARTIAL').length,
+    sessionsRecorded: completed.length,
     totalTrainingSeconds,
     totalActiveSeconds,
+    totalRestSeconds,
+    totalReps: reps.length ? reps.reduce((sum, value) => sum + value, 0) : null,
+    totalRounds,
     averageDurationSeconds: completed.length ? totalTrainingSeconds / completed.length : null,
-    averageCompletion: completions.length ? completions.reduce((a, b) => a + b, 0) / completions.length : null,
+    averageCompletion: completions,
+    averageRepCompletion: repCompletions,
+    averageIntervalCompletion: intervalCompletions,
+    averageScore: scores,
+    averageWorkRestRatio: ratios,
     streak: currentStreak(completed, now),
   };
+}
+
+function meanOf(values: Array<number | undefined>): number | null {
+  const present = values.filter((value): value is number => value != null && Number.isFinite(value));
+  if (present.length === 0) return null;
+  return present.reduce((sum, value) => sum + value, 0) / present.length;
 }
 
 export function currentStreak(sessions: WorkoutSession[], now: number): number {
@@ -90,7 +125,7 @@ export function trendPoints(
   performance: PerformanceRecord[],
   range: RangeKey,
   now: number,
-  field: 'duration' | 'completion' | 'active' | 'reps',
+  field: 'duration' | 'completion' | 'active' | 'rest' | 'reps' | 'score',
 ): ChartPoint[] {
   const selected = filterSessions(sessions, range, now);
   return selected
@@ -107,6 +142,11 @@ export function trendPoints(
         return { label, value: record.workCompletionPercent };
       }
       if (field === 'active') return { label, value: record.totalActiveSeconds };
+      if (field === 'rest') return { label, value: record.totalRestSeconds };
+      if (field === 'score') {
+        if (record.performanceScore == null) return null;
+        return { label, value: record.performanceScore };
+      }
       if (record.totalReps == null) return null;
       return { label, value: record.totalReps };
     })

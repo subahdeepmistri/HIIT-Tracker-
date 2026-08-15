@@ -2,6 +2,11 @@ import { DEFAULTS } from '../../config/defaults';
 import { createId } from '../../domain/ids';
 import type { IntervalOutcome, IntervalPhase, TrackingMode, WorkoutPhase } from '../../domain/types';
 import { remainingMs } from '../clock/timestampClock';
+import {
+  calculateLiveProgress,
+  formatIntervalProgressDetail,
+  formatWorkoutProgressDetail,
+} from './liveProgress';
 import type { PlannedSlot, PlannedWorkout } from './planner';
 
 export interface IntervalDraft {
@@ -68,6 +73,11 @@ export interface LiveView {
   targetLabel: string | null;
   slotIndex: number;
   totalSlots: number;
+  intervalProgress: number;
+  workoutProgress: number;
+  closedSlots: number;
+  intervalDetail: string;
+  workoutDetail: string;
 }
 
 export function createIdleState(): EngineState {
@@ -245,12 +255,19 @@ export function getLiveView(state: EngineState, now: number): LiveView {
   const elapsed = Math.max(0, plannedMs - remain);
   const slot = currentSlot(state);
   const progress = plannedMs > 0 ? Math.min(1, elapsed / plannedMs) : 0;
+  const live = calculateLiveProgress({
+    phase: state.phase,
+    slotIndex: state.slotIndex,
+    totalSlots: state.slots.length,
+    closedSlots: state.intervals.length,
+    intervalProgress: progress,
+  });
 
   return {
     phase: state.phase,
     remainingMs: remain,
     elapsedMs: elapsed,
-    progress,
+    progress: live.intervalProgress,
     currentExerciseId: slot?.exerciseId ?? state.slots[0]?.exerciseId ?? null,
     currentExerciseName: slot?.exerciseName ?? state.slots[0]?.exerciseName ?? null,
     nextExerciseId: nextExerciseId(state),
@@ -266,6 +283,11 @@ export function getLiveView(state: EngineState, now: number): LiveView {
     targetLabel: targetLabel(slot, state.phase),
     slotIndex: state.slotIndex,
     totalSlots: state.slots.length,
+    intervalProgress: live.intervalProgress,
+    workoutProgress: live.workoutProgress,
+    closedSlots: live.closedSlots,
+    intervalDetail: formatIntervalProgressDetail(elapsed, plannedMs / 1000),
+    workoutDetail: formatWorkoutProgressDetail(live.currentSlotNumber, live.totalSlots),
   };
 }
 

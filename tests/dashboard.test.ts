@@ -22,6 +22,10 @@ describe('dashboardStats', () => {
     const stats = dashboardStats(sessions, performance, endedAt);
     expect(stats.totalTrainingSeconds).toBe(1780);
     expect(stats.totalTrainingSeconds).not.toBe(60);
+    expect(stats.totalRestSeconds).toBe(0);
+    expect(stats.partialWorkouts).toBe(0);
+    expect(stats.averageScore).toBeNull();
+    expect(stats.totalReps).toBeNull();
   });
 
   it('does not interpolate missing days in trends', () => {
