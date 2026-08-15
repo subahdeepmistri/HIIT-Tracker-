@@ -41,6 +41,24 @@ npx expo start
 - Press `w` for a mobile-width web preview
 - Scan the QR code in Expo Go for haptics, keep-awake, and native audio
 
+## Deploy (Netlify)
+
+This app is an Expo Router **single-page** site. The Git repo does not contain a built `index.html`. Netlify must **build** on every push and then fall back unknown paths to `index.html`.
+
+`netlify.toml` already sets:
+
+```
+build:  npx expo export --platform web
+publish: dist
+redirect: /* → /index.html (200)
+```
+
+If the site still shows Netlify’s “Page not found”:
+
+1. Site settings → Build & deploy → confirm the build command and publish directory match `netlify.toml`
+2. Trigger a **clear cache and deploy**
+3. Open the site root (`https://your-site.netlify.app/`), not a stale `/live/...` URL from before the fix
+
 ## Tests
 
 ```bash

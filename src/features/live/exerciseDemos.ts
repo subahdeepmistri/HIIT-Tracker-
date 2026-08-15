@@ -9,17 +9,19 @@ export interface ExerciseDemo {
 
 const DEMOS: Record<string, ExerciseDemo> = {
   'ex-high-knees': {
-    intervalMs: 280,
+    intervalMs: 340,
     frames: [
-      require('../../../assets/exercises/high-knees-a.jpg'),
-      require('../../../assets/exercises/high-knees-b.jpg'),
+      require('../../../assets/exercises/high-knees-right.jpg'),
+      require('../../../assets/exercises/high-knees-left.jpg'),
     ],
   },
   'ex-mountain-climbers': {
-    intervalMs: 280,
+    intervalMs: 360,
     frames: [
-      require('../../../assets/exercises/mountain-climbers-a.jpg'),
-      require('../../../assets/exercises/mountain-climbers-b.jpg'),
+      require('../../../assets/exercises/mc-near.jpg'),
+      require('../../../assets/exercises/mc-plank.jpg'),
+      require('../../../assets/exercises/mc-far.jpg'),
+      require('../../../assets/exercises/mc-plank.jpg'),
     ],
   },
   'ex-squats': {

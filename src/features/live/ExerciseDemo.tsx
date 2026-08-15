@@ -36,8 +36,8 @@ export function ExerciseDemo({
       style={{ alignItems: 'center', gap: 6 }}>
       <View
         style={{
-          width: 132,
-          height: 132,
+          width: 148,
+          height: 148,
           borderRadius: theme.radius.md,
           overflow: 'hidden',
           borderWidth: 1,
