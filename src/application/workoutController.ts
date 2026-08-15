@@ -178,12 +178,12 @@ export class WorkoutController {
     return this.finalize('PARTIAL');
   }
 
-  async discard(): Promise<void> {
-    const sessionId = this.state.sessionId as SessionId;
+  async discard(sessionId?: SessionId): Promise<void> {
+    const id = sessionId ?? (this.state.sessionId as SessionId | undefined);
     this.state = finish(this.state, this.clock.now(), 'discard');
-    if (sessionId) {
-      await this.deps.db.sessions.remove(sessionId);
-      await this.deps.db.intervals.removeBySession(sessionId);
+    if (id) {
+      await this.deps.db.intervals.removeBySession(id);
+      await this.deps.db.sessions.remove(id);
     }
     this.state = createIdleState();
     await this.deps.persistLive?.(null);

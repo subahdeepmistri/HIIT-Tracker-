@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DEFAULTS } from '@/src/config/defaults';
 import { Units } from '@/src/domain/units';
 import { KeepAwakeWhile, useVolt } from '@/src/features/app/VoltProvider';
+import { demoIdForLiveView } from '@/src/features/live/exerciseDemoLogic';
+import { ExerciseDemo } from '@/src/features/live/ExerciseDemo';
 import { PhaseBadge } from '@/src/ui/components/PhaseBadge';
 import { playCue } from '@/src/ui/cues';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -116,6 +118,17 @@ export default function LiveWorkoutScreen() {
               Next {view.nextExerciseName}
             </Text>
           ) : null}
+          <View style={{ marginTop: 8, alignItems: 'flex-start' }}>
+            <ExerciseDemo
+              exerciseId={demoIdForLiveView(view)}
+              caption={
+                view.phase === 'REST' || view.phase === 'TRANSITION'
+                  ? `Next · ${view.nextExerciseName ?? 'exercise'}`
+                  : 'Form'
+              }
+              reducedMotion={settings.reducedMotion}
+            />
+          </View>
         </View>
 
         <View style={{ alignItems: 'center' }}>

@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { weekStats, greeting } from '@/src/engine/analytics/dashboard';
@@ -9,6 +9,7 @@ import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import { Units } from '@/src/domain/units';
+import { confirmAction } from '@/src/ui/confirm';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -72,18 +73,14 @@ export default function HomeScreen() {
               <Button
                 label="Discard"
                 variant="danger"
-                onPress={() => {
-                  Alert.alert('Discard session?', 'Recorded intervals from this run will be deleted.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Discard',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await controller.hydrateFromStorage();
-                        await controller.discard();
-                      },
-                    },
-                  ]);
+                onPress={async () => {
+                  const ok = await confirmAction(
+                    'Discard session?',
+                    'Recorded intervals from this run will be deleted.',
+                    'Discard',
+                  );
+                  if (!ok) return;
+                  await controller.discard(interrupted.id);
                 }}
               />
             </View>
@@ -91,22 +88,22 @@ export default function HomeScreen() {
         ) : null}
 
         {plan && planned ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Start ${plan.workout.name}`}
-            onPress={() => router.push(`/workouts/${plan.workout.id}`)}>
-            <Card style={{ backgroundColor: theme.color.surface, gap: 8 }}>
-              <Label>Today’s workout</Label>
-              <Heading style={{ fontSize: 36, lineHeight: 38 }}>{plan.workout.name}</Heading>
-              <Body style={{ color: theme.color.muted }}>
-                {Units.formatCompactDuration(planned.plannedDurationSeconds)} · {planned.rounds} rounds ·{' '}
-                {planned.exerciseCount} exercises
-              </Body>
-              <View style={{ marginTop: 12 }}>
-                <Button label="Start" large onPress={() => router.push(`/workouts/${plan.workout.id}`)} />
-              </View>
-            </Card>
-          </Pressable>
+          <Card style={{ backgroundColor: theme.color.surface, gap: 8 }}>
+            <Label>Today’s workout</Label>
+            <Heading style={{ fontSize: 36, lineHeight: 38 }}>{plan.workout.name}</Heading>
+            <Body style={{ color: theme.color.muted }}>
+              {Units.formatCompactDuration(planned.plannedDurationSeconds)} · {planned.rounds} rounds ·{' '}
+              {planned.exerciseCount} exercises
+            </Body>
+            <View style={{ marginTop: 12 }}>
+              <Button
+                label="Start"
+                large
+                accessibilityHint={`Open ${plan.workout.name}`}
+                onPress={() => router.push(`/workouts/${plan.workout.id}`)}
+              />
+            </View>
+          </Card>
         ) : (
           <EmptyState
             title="Build a session"

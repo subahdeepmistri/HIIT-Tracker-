@@ -13,6 +13,7 @@ export interface PlannedSlot {
   plannedReps?: number;
   plannedDistance?: number;
   distanceUnit?: WorkoutExercise['distanceUnit'];
+  nextExerciseId?: string;
   nextExerciseName?: string;
   isLastInRound: boolean;
   isLastInWorkout: boolean;
@@ -62,6 +63,7 @@ export function planWorkout(input: PlannerInput): PlannedWorkout {
         plannedReps: item.plannedReps,
         plannedDistance: item.plannedDistance,
         distanceUnit: item.distanceUnit,
+        nextExerciseId: nextItem?.exercise.id,
         nextExerciseName: nextItem?.exercise.name,
         isLastInRound: isLastExercise,
         isLastInWorkout,
@@ -78,6 +80,7 @@ export function planWorkout(input: PlannerInput): PlannedWorkout {
             exerciseName: item.exercise.name,
             trackingMode: item.trackingMode,
             plannedSeconds: item.plannedRestSeconds,
+            nextExerciseId: nextItem?.exercise.id,
             nextExerciseName: nextItem?.exercise.name,
             isLastInRound: isLastExercise,
             isLastInWorkout: false,
@@ -92,6 +95,7 @@ export function planWorkout(input: PlannerInput): PlannedWorkout {
             exerciseName: item.exercise.name,
             trackingMode: item.trackingMode,
             plannedSeconds: transitionSeconds,
+            nextExerciseId: nextItem?.exercise.id,
             nextExerciseName: nextItem?.exercise.name,
             isLastInRound: isLastExercise,
             isLastInWorkout: false,

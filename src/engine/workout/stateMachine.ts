@@ -53,7 +53,9 @@ export interface LiveView {
   remainingMs: number;
   elapsedMs: number;
   progress: number;
+  currentExerciseId: string | null;
   currentExerciseName: string | null;
+  nextExerciseId: string | null;
   nextExerciseName: string | null;
   roundIndex: number;
   totalRounds: number;
@@ -249,7 +251,9 @@ export function getLiveView(state: EngineState, now: number): LiveView {
     remainingMs: remain,
     elapsedMs: elapsed,
     progress,
+    currentExerciseId: slot?.exerciseId ?? state.slots[0]?.exerciseId ?? null,
     currentExerciseName: slot?.exerciseName ?? state.slots[0]?.exerciseName ?? null,
+    nextExerciseId: nextExerciseId(state),
     nextExerciseName: nextExerciseName(state),
     roundIndex: slot?.roundIndex ?? 1,
     totalRounds: state.plannedRounds,
@@ -397,6 +401,14 @@ function nextExerciseName(state: EngineState): string | null {
   if (slot?.nextExerciseName) return slot.nextExerciseName;
   const upcoming = state.slots[state.slotIndex + 1];
   return upcoming?.exerciseName ?? null;
+}
+
+function nextExerciseId(state: EngineState): string | null {
+  if (state.phase === 'COUNTDOWN') return state.slots[0]?.exerciseId ?? null;
+  const slot = currentSlot(state);
+  if (slot?.nextExerciseId) return slot.nextExerciseId;
+  const upcoming = state.slots[state.slotIndex + 1];
+  return upcoming?.exerciseId ?? null;
 }
 
 function targetLabel(slot: PlannedSlot | undefined, phase: WorkoutPhase): string | null {

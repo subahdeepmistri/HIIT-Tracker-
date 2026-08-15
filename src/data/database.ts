@@ -232,6 +232,7 @@ export class VoltDatabase {
         const parsed = JSON.parse(raw) as VoltSnapshot;
         if (parsed.version === DB_VERSION) {
           this.snapshot = parsed;
+          this.snapshot.settings = { ...defaultSettings(), ...parsed.settings };
           if (!(await AsyncStorage.getItem(STORAGE_KEY))) {
             await this.save();
           }

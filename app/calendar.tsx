@@ -42,9 +42,9 @@ export default function CalendarScreen() {
           />
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <Label key={d} style={{ width: `${100 / 7}%`, textAlign: 'center', marginBottom: 8 }}>
-              {d}
+              {d.slice(0, 1)}
             </Label>
           ))}
           {days.map((cell, index) => {

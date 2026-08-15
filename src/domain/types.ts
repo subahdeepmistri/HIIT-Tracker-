@@ -71,6 +71,7 @@ export interface User {
   id: UserId;
   displayName?: string;
   onboardingCompletedAt?: number;
+  onboardingStep?: number;
   createdAt: number;
 }
 
@@ -86,6 +87,9 @@ export interface UserSettings {
   countdownSound: boolean;
   restEndingAlert: boolean;
   completionSound: boolean;
+  hapticIntervalChanges?: boolean;
+  hapticCountdown?: boolean;
+  hapticComplete?: boolean;
   remindersEnabled: boolean;
   reminderHour: number;
   reminderMinute: number;

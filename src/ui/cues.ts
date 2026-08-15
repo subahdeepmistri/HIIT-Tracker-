@@ -5,7 +5,7 @@ import type { UserSettings } from '../domain/types';
 type CueKind = 'countdown' | 'work' | 'restEnding' | 'complete' | 'tap';
 
 export async function playCue(kind: CueKind, settings: UserSettings): Promise<void> {
-  if (settings.hapticsEnabled) {
+  if (hapticAllowed(kind, settings)) {
     await haptic(kind);
   }
   if (!settings.soundEnabled) return;
@@ -13,6 +13,13 @@ export async function playCue(kind: CueKind, settings: UserSettings): Promise<vo
   if (kind === 'restEnding' && !settings.restEndingAlert) return;
   if (kind === 'complete' && !settings.completionSound) return;
   await beep(kind);
+}
+
+function hapticAllowed(kind: CueKind, settings: UserSettings): boolean {
+  if (!settings.hapticsEnabled) return false;
+  if (kind === 'complete') return settings.hapticComplete !== false;
+  if (kind === 'countdown') return settings.hapticCountdown !== false;
+  return settings.hapticIntervalChanges !== false;
 }
 
 async function haptic(kind: CueKind): Promise<void> {

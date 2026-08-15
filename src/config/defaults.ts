@@ -21,4 +21,7 @@ export const AUDIO_DEFAULTS = {
   countdownSound: true,
   restEndingAlert: true,
   completionSound: true,
+  hapticIntervalChanges: true,
+  hapticCountdown: true,
+  hapticComplete: true,
 } as const;
