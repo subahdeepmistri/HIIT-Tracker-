@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Units } from '@/src/domain/units';
 import { planWorkout } from '@/src/engine/workout/planner';
+import { exerciseTrackingLine } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -50,8 +51,9 @@ export default function WorkoutsScreen() {
                   <View style={{ marginTop: 12, gap: 4 }}>
                     {plan.exercises.slice(0, 4).map((item) => (
                       <Label key={item.id}>
-                        {item.orderIndex + 1}. {item.exercise.name} · {item.plannedWorkSeconds}s work /{' '}
-                        {item.plannedRestSeconds}s rest
+                        {item.exercise.name.toUpperCase()}
+                        {'  '}
+                        {exerciseTrackingLine(item)}
                       </Label>
                     ))}
                   </View>

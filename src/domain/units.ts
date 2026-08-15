@@ -58,7 +58,7 @@ export const Units = {
       return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
     }
     if (minutes > 0) {
-      return seconds > 0 && minutes < 10 ? `${minutes}m ${seconds}s` : `${minutes} min`;
+      return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
     }
     return `${seconds}s`;
   },

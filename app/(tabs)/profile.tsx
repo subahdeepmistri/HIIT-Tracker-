@@ -4,15 +4,18 @@ import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useRouter } from 'expo-router';
 import { db } from '@/src/data/database';
 import { buildExportRows, toCsv, toJson } from '@/src/data/export';
 import { useVolt } from '@/src/features/app/VoltProvider';
+import { resetOnboarding } from '@/src/features/onboarding/logic';
 import { Body, Button, Card, Heading, Label, SegmentedControl, Strong } from '@/src/ui/components/primitives';
 import { syncReminders } from '@/src/ui/notifications';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { settings } = useVolt();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -54,7 +57,7 @@ export default function ProfileScreen() {
         <Body style={{ color: theme.color.muted }}>Local-only athlete profile. No account required.</Body>
 
         <Card>
-          <Label>Theme</Label>
+          <Label>Appearance</Label>
           <View style={{ marginTop: 12 }}>
             <SegmentedControl
               value={settings.theme}
@@ -66,25 +69,15 @@ export default function ProfileScreen() {
               ]}
             />
           </View>
+          <Toggle
+            label="Reduce motion"
+            value={settings.reducedMotion}
+            onChange={(value) => void patch({ reducedMotion: value })}
+          />
         </Card>
 
         <Card>
-          <Label>Distance units</Label>
-          <View style={{ marginTop: 12 }}>
-            <SegmentedControl
-              value={settings.distanceUnit}
-              onChange={(value) => void patch({ distanceUnit: value as typeof settings.distanceUnit })}
-              options={[
-                { label: 'm', value: 'm' },
-                { label: 'km', value: 'km' },
-                { label: 'mi', value: 'mi' },
-              ]}
-            />
-          </View>
-        </Card>
-
-        <Card>
-          <Label>Default HIIT</Label>
+          <Label>Training</Label>
           <Stepper
             label="Countdown"
             value={settings.countdownSeconds}
@@ -108,31 +101,61 @@ export default function ProfileScreen() {
             value={settings.defaultRounds}
             onChange={(value) => void patch({ defaultRounds: Math.max(1, value) })}
           />
+          <View style={{ marginTop: 12 }}>
+            <Label>Distance units</Label>
+            <View style={{ marginTop: 10 }}>
+              <SegmentedControl
+                value={settings.distanceUnit}
+                onChange={(value) => void patch({ distanceUnit: value as typeof settings.distanceUnit })}
+                options={[
+                  { label: 'm', value: 'm' },
+                  { label: 'km', value: 'km' },
+                  { label: 'mi', value: 'mi' },
+                ]}
+              />
+            </View>
+          </View>
         </Card>
 
         <Card>
-          <Label>Cues</Label>
+          <Label>Feedback</Label>
           <Toggle label="Sound" value={settings.soundEnabled} onChange={(value) => void patch({ soundEnabled: value })} />
-          <Toggle label="Haptics" value={settings.hapticsEnabled} onChange={(value) => void patch({ hapticsEnabled: value })} />
           <Toggle
-            label="Countdown sound"
+            label="Interval countdown"
             value={settings.countdownSound}
+            disabled={!settings.soundEnabled}
             onChange={(value) => void patch({ countdownSound: value })}
           />
           <Toggle
-            label="Rest ending alert"
+            label="Rest ending"
             value={settings.restEndingAlert}
+            disabled={!settings.soundEnabled}
             onChange={(value) => void patch({ restEndingAlert: value })}
           />
           <Toggle
-            label="Completion sound"
+            label="Workout complete"
             value={settings.completionSound}
+            disabled={!settings.soundEnabled}
             onChange={(value) => void patch({ completionSound: value })}
           />
+          <Toggle label="Haptics" value={settings.hapticsEnabled} onChange={(value) => void patch({ hapticsEnabled: value })} />
           <Toggle
-            label="Reduce motion"
-            value={settings.reducedMotion}
-            onChange={(value) => void patch({ reducedMotion: value })}
+            label="Interval changes"
+            value={settings.hapticIntervalChanges !== false}
+            disabled={!settings.hapticsEnabled}
+            onChange={(value) => void patch({ hapticIntervalChanges: value })}
+          />
+          <Toggle
+            label="Countdown"
+            value={settings.hapticCountdown !== false}
+            disabled={!settings.hapticsEnabled}
+            onChange={(value) => void patch({ hapticCountdown: value })}
+          />
+          <Toggle
+            label="Workout complete"
+            value={settings.hapticComplete !== false}
+            disabled={!settings.hapticsEnabled}
+            onChange={(value) => void patch({ hapticComplete: value })}
           />
         </Card>
 
@@ -159,6 +182,23 @@ export default function ProfileScreen() {
         </Card>
 
         <Card>
+          <Label>Setup</Label>
+          <Body style={{ marginTop: 8, color: theme.color.muted }}>
+            Replay the introduction without changing your saved training data.
+          </Body>
+          <View style={{ marginTop: 12 }}>
+            <Button
+              label="Replay onboarding"
+              variant="ghost"
+              onPress={async () => {
+                await db.user.update(resetOnboarding(db.user.get()));
+                router.replace('/onboarding');
+              }}
+            />
+          </View>
+        </Card>
+
+        <Card>
           <Label>Data</Label>
           <View style={{ marginTop: 12, gap: 8 }}>
             <Button label="Export JSON" variant="ghost" onPress={() => void exportData('json')} />
@@ -182,14 +222,33 @@ export default function ProfileScreen() {
   );
 }
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+function Toggle({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
   const theme = useTheme();
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 48 }}>
+    <View
+      style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        minHeight: 48,
+        opacity: disabled ? 0.38 : 1,
+      }}>
       <Strong>{label}</Strong>
       <Switch
-        value={value}
+        value={disabled ? false : value}
         onValueChange={onChange}
+        disabled={disabled}
+        accessibilityState={{ disabled: Boolean(disabled), checked: disabled ? false : value }}
         trackColor={{ true: theme.color.accent, false: theme.color.line }}
         thumbColor={theme.color.text}
       />

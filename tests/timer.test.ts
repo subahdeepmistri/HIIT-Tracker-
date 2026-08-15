@@ -31,6 +31,18 @@ describe('timestamp clock', () => {
     expect(Math.abs(afterBackground.remainingMs - 7_000)).toBeLessThanOrEqual(16);
   });
 
+  it('accounts for 10s backgrounded during a 40s work interval', () => {
+    const clock = new FrozenClock(0);
+    let state = startWorkout(oneWorkPlan(40), clock.now(), { roundCompleteSeconds: 0 });
+    clock.advance(3_000);
+    state = tick(state, clock.now());
+    expect(state.phase).toBe('WORK');
+    clock.advance(10_000);
+    expect(getLiveView(state, clock.now()).remainingMs).toBe(30_000);
+    clock.advance(10_000);
+    expect(getLiveView(state, clock.now()).remainingMs).toBe(20_000);
+  });
+
   it('does not consume interval time while paused', () => {
     const clock = new FrozenClock(0);
     const plan = oneWorkPlan(10);

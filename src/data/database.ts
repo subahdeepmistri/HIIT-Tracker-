@@ -18,6 +18,7 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from '../domain/types';
+import { applyMigrations } from './migrate';
 import { DB_VERSION, type VoltSnapshot } from './schema';
 import { CATALOG_EXERCISES } from './seed/exercises';
 import { STARTER_WORKOUT_EXERCISES, STARTER_WORKOUTS } from './seed/workouts';
@@ -229,15 +230,19 @@ export class VoltDatabase {
         (await AsyncStorage.getItem(STORAGE_KEY)) ??
         (await AsyncStorage.getItem(DEFAULTS.legacyStorageKey));
       if (raw) {
-        const parsed = JSON.parse(raw) as VoltSnapshot;
-        if (parsed.version === DB_VERSION) {
-          this.snapshot = parsed;
-          this.snapshot.settings = { ...defaultSettings(), ...parsed.settings };
-          if (!(await AsyncStorage.getItem(STORAGE_KEY))) {
-            await this.save();
-          }
-        } else {
-          this.snapshot = emptySnapshot();
+        const parsed = JSON.parse(raw) as Partial<VoltSnapshot> & { version?: number };
+        const incomingVersion = parsed.version ?? 1;
+        const merged: VoltSnapshot = {
+          ...emptySnapshot(),
+          ...parsed,
+          version: incomingVersion,
+          settings: { ...defaultSettings(), ...parsed.settings },
+          user: { ...emptySnapshot().user, ...parsed.user },
+        };
+        this.snapshot = applyMigrations(merged);
+        const needsWrite =
+          this.snapshot.version !== incomingVersion || !(await AsyncStorage.getItem(STORAGE_KEY));
+        if (needsWrite) {
           await this.save();
         }
       } else {

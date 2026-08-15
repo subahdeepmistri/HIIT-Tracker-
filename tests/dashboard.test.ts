@@ -15,6 +15,15 @@ describe('dashboardStats', () => {
     expect(stats.streak).toBe(0);
   });
 
+  it('uses recorded training duration instead of wall-clock time', () => {
+    const endedAt = Date.parse('2026-08-15T12:00:00');
+    const sessions = [session('s1', endedAt)];
+    const performance = [perf('s1', 1780, 100)];
+    const stats = dashboardStats(sessions, performance, endedAt);
+    expect(stats.totalTrainingSeconds).toBe(1780);
+    expect(stats.totalTrainingSeconds).not.toBe(60);
+  });
+
   it('does not interpolate missing days in trends', () => {
     const day1 = Date.parse('2026-08-01T12:00:00');
     const day3 = Date.parse('2026-08-03T12:00:00');

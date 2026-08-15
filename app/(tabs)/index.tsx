@@ -136,7 +136,18 @@ export default function HomeScreen() {
         <View>
           <Label>Recent workouts</Label>
           {sessions.filter((row) => row.status !== 'IN_PROGRESS' && row.status !== 'CANCELLED').length === 0 ? (
-            <Body style={{ marginTop: 8, color: theme.color.muted }}>Nothing logged yet.</Body>
+            <Card style={{ marginTop: 12 }}>
+              <Label>Your first session</Label>
+              <Body style={{ marginTop: 8, color: theme.color.muted }}>
+                Complete your first workout to unlock your training history, progress trends, and personal records.
+              </Body>
+              <View style={{ marginTop: 16 }}>
+                <Button
+                  label="Start Morning HIIT"
+                  onPress={() => router.push('/workouts/wo-morning-hiit')}
+                />
+              </View>
+            </Card>
           ) : (
             <View style={{ marginTop: 12, gap: 10 }}>
               {sessions
@@ -157,10 +168,8 @@ export default function HomeScreen() {
                       }}>
                       <Strong>{session.workoutNameSnapshot}</Strong>
                       <Body style={{ color: theme.color.muted, marginTop: 4 }}>
-                        {new Date(session.endedAt ?? session.startedAt).toLocaleDateString()} ·{' '}
-                        {record
-                          ? Units.formatCompactDuration(record.totalDurationSeconds)
-                          : Units.formatCompactDuration(((session.endedAt ?? session.startedAt) - session.startedAt) / 1000)}
+                        {new Date(session.endedAt ?? session.startedAt).toLocaleDateString()}
+                        {record ? ` · ${Units.formatCompactDuration(record.totalDurationSeconds)}` : ''}
                         {record?.workCompletionPercent != null
                           ? ` · ${Units.formatPercent(record.workCompletionPercent)}`
                           : ''}

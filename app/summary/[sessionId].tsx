@@ -8,6 +8,7 @@ import { Units } from '@/src/domain/units';
 import { calculateSessionMetrics } from '@/src/engine/calc/metrics';
 import { formatRecordValue, recordKindLabel } from '@/src/engine/records/personalRecords';
 import { scoreFromMetrics } from '@/src/engine/score/performanceScore';
+import { plannedActualRows } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, Heading, Label, Stat, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -43,10 +44,10 @@ export default function SummaryScreen() {
         <TextHero
           value={
             isValue(metrics.totalDurationSeconds)
-              ? Units.formatSeconds(metrics.totalDurationSeconds.value)
+              ? Units.formatCompactDuration(metrics.totalDurationSeconds.value)
               : 'Not enough data'
           }
-          label="Total duration"
+          label="Training duration"
         />
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
@@ -116,16 +117,18 @@ export default function SummaryScreen() {
         </Card>
 
         <Card>
-          <Label>Performance score</Label>
+          <Label>Performance</Label>
           {isValue(score) ? (
             <>
-              <Heading style={{ fontSize: 48, marginTop: 8 }}>{Math.round(score.value.total)}</Heading>
-              {score.value.components.map((component) => (
-                <Body key={component.key} style={{ color: theme.color.muted, marginTop: 4 }}>
-                  {component.label} {Units.formatPercent(component.score)} · weight{' '}
-                  {Units.formatPercent(component.renormalizedWeight * 100)}
-                </Body>
-              ))}
+              <Heading style={{ fontSize: 56, marginTop: 8 }}>{Math.round(score.value.total)}</Heading>
+              <View style={{ marginTop: 12, gap: 6 }}>
+                {score.value.components.map((component) => (
+                  <View key={component.key} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Body style={{ color: theme.color.muted }}>{component.label}</Body>
+                    <Strong>{Units.formatPercent(component.score)}</Strong>
+                  </View>
+                ))}
+              </View>
             </>
           ) : (
             <Body style={{ marginTop: 8 }}>Not enough data</Body>
@@ -152,17 +155,18 @@ export default function SummaryScreen() {
 
         <Card>
           <Label>Planned vs actual</Label>
-          <View style={{ marginTop: 12, gap: 8 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Label>Planned</Label>
-              <Label>Actual</Label>
-            </View>
+          <View style={{ marginTop: 12, gap: 14 }}>
             {work.map((row) => (
-              <View key={row.id} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Body>
-                  {row.exerciseNameSnapshot} · {row.plannedSeconds}s
-                </Body>
-                <Strong>{row.actualSeconds.toFixed(1)}s</Strong>
+              <View key={row.id} style={{ gap: 6 }}>
+                <Strong>{row.exerciseNameSnapshot.toUpperCase()}</Strong>
+                {plannedActualRows(row).map((pair) => (
+                  <View key={`${row.id}-${pair.metric}`} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Body style={{ color: theme.color.muted }}>
+                      Planned {pair.planned}
+                    </Body>
+                    <Strong>Actual {pair.actual}</Strong>
+                  </View>
+                ))}
               </View>
             ))}
           </View>
@@ -170,7 +174,10 @@ export default function SummaryScreen() {
 
         <Card>
           <Label>Heart rate</Label>
-          <Body style={{ marginTop: 8 }}>Heart-rate data unavailable</Body>
+          <Body style={{ marginTop: 8 }}>No compatible heart-rate sensor is connected.</Body>
+          <Body style={{ color: theme.color.muted, fontSize: 13, marginTop: 6 }}>
+            Connect a supported device to see heart-rate data during workouts. This app never estimates heart rate.
+          </Body>
         </Card>
 
         {newRecords.length > 0 ? (

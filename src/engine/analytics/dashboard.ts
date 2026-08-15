@@ -36,9 +36,11 @@ export function dashboardStats(
   now: number,
 ): DashboardStats {
   const completed = sessions.filter((session) => session.status === 'COMPLETED' || session.status === 'PARTIAL');
+  const performanceBySession = new Map(performance.map((row) => [row.sessionId, row]));
   const totalTrainingSeconds = completed.reduce((sum, session) => {
-    const end = session.endedAt ?? session.startedAt;
-    return sum + Math.max(0, (end - session.startedAt) / 1000);
+    const record = performanceBySession.get(session.id);
+    if (record) return sum + record.totalDurationSeconds;
+    return sum;
   }, 0);
   const totalActiveSeconds = performance
     .filter((row) => completed.some((session) => session.id === row.sessionId))

@@ -40,3 +40,6 @@ export function plannedDurationForDraft(input: {
     countdownSeconds: input.countdownSeconds,
   }).plannedDurationSeconds;
 }
+
+export { calculateRestDuration, calculateTrainingDuration, calculateWorkDuration } from './planner';
+export { calculateTrainingDurationFromRecorded } from '../calc/metrics';

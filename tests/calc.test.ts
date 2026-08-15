@@ -113,6 +113,13 @@ describe('calculateSessionMetrics', () => {
     const metrics = calculateSessionMetrics(baseSession(), [workInterval({})], 80_000);
     expect(metrics.distanceCompletionPercent.kind).toBe('insufficient');
   });
+
+  it('excludes countdown from training duration', () => {
+    const session = { ...baseSession(), startedAt: 0, endedAt: 43_000, countdownSecondsUsed: 3 };
+    const metrics = calculateSessionMetrics(session, [workInterval({ actualSeconds: 40, plannedSeconds: 40 })], 43_000);
+    expect(metrics.elapsedSeconds).toEqual({ kind: 'value', value: 43 });
+    expect(metrics.totalDurationSeconds).toEqual({ kind: 'value', value: 40 });
+  });
 });
 
 function baseSession(): WorkoutSession {

@@ -1,9 +1,18 @@
 import React from 'react';
 import { View } from 'react-native';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
-export function ProgressDots({ total, index }: { total: number; index: number }) {
+export function ProgressDots({
+  total,
+  index,
+  reducedMotion,
+}: {
+  total: number;
+  index: number;
+  reducedMotion?: boolean;
+}) {
   const theme = useTheme();
   return (
     <View
@@ -14,13 +23,14 @@ export function ProgressDots({ total, index }: { total: number; index: number })
       {Array.from({ length: total }, (_, dot) => {
         const active = dot <= index;
         return (
-          <View
-            key={`dot-${dot}`}
+          <Animated.View
+            key={`dot-${dot}-${active ? 'on' : 'off'}`}
+            entering={reducedMotion || !active ? undefined : ZoomIn.duration(180)}
             style={{
-              width: active ? 14 : 8,
+              width: 8,
               height: 8,
               borderRadius: theme.radius.pill,
-              backgroundColor: active ? theme.color.accent : theme.color.line,
+              backgroundColor: active ? theme.color.accent : theme.color.surface2,
             }}
           />
         );

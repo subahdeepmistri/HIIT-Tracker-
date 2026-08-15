@@ -9,11 +9,13 @@ export function SettingToggle({
   hint,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   hint?: string;
   value: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   const theme = useTheme();
   return (
@@ -24,6 +26,7 @@ export function SettingToggle({
         justifyContent: 'space-between',
         minHeight: 52,
         gap: 12,
+        opacity: disabled ? 0.38 : 1,
       }}>
       <View style={{ flex: 1 }}>
         <Strong>{label}</Strong>
@@ -32,9 +35,11 @@ export function SettingToggle({
         ) : null}
       </View>
       <Switch
-        value={value}
+        value={disabled ? false : value}
         onValueChange={onChange}
+        disabled={disabled}
         accessibilityLabel={label}
+        accessibilityState={{ disabled: Boolean(disabled), checked: disabled ? false : value }}
         trackColor={{ true: theme.color.accent, false: theme.color.line }}
         thumbColor={theme.color.text}
       />

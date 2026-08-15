@@ -36,8 +36,27 @@ export const SKIP_DEFAULTS: Pick<
   hapticComplete: true,
 };
 
-export function isOnboardingComplete(user: Pick<User, 'onboardingCompletedAt'>): boolean {
-  return Boolean(user.onboardingCompletedAt);
+/** Bump this when the onboarding flow itself changes and existing users should see it once. */
+export const ONBOARDING_VERSION = 2;
+
+export function isOnboardingComplete(
+  user: Pick<User, 'onboardingCompletedAt' | 'onboardingVersion'>,
+): boolean {
+  return Boolean(user.onboardingCompletedAt) && (user.onboardingVersion ?? 0) >= ONBOARDING_VERSION;
+}
+
+export function shouldApplySkipDefaults(
+  user: Pick<User, 'onboardingCompletedAt'>,
+): boolean {
+  return !user.onboardingCompletedAt;
+}
+
+export function resetOnboarding(user: User): User {
+  return {
+    ...user,
+    onboardingVersion: 0,
+    onboardingStep: 0,
+  };
 }
 
 export function clampOnboardingStep(step: number | undefined): number {
@@ -54,6 +73,7 @@ export function markOnboardingComplete(user: User, now: number = Date.now()): Us
     ...user,
     onboardingCompletedAt: now,
     onboardingStep: undefined,
+    onboardingVersion: ONBOARDING_VERSION,
   };
 }
 
@@ -61,12 +81,12 @@ export function estimateDefaultSessionDuration(input: {
   workSeconds: number;
   restSeconds: number;
   rounds: number;
-  countdownSeconds: number;
+  countdownSeconds?: number;
 }): number {
   return plannedDurationForDraft({
-    name: 'Default session',
+    name: 'Default intervals',
     rounds: input.rounds,
-    countdownSeconds: input.countdownSeconds,
+    countdownSeconds: input.countdownSeconds ?? 0,
     items: [
       {
         id: asId('onboarding-default'),

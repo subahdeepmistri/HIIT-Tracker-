@@ -11,7 +11,7 @@ import type {
   WorkoutSession,
 } from '../domain/types';
 
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export interface VoltSnapshot {
   version: number;

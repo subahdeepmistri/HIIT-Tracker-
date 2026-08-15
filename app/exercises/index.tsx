@@ -4,6 +4,7 @@ import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ExerciseCategory } from '@/src/domain/types';
+import { libraryTrackingLine } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -65,16 +66,13 @@ export default function ExerciseLibraryScreen() {
         {rows.map((exercise) => (
           <Card key={exercise.id}>
             <Label>
-              {exercise.category} · {exercise.trackingMode}
+              {exercise.category}
               {exercise.isCustom ? ' · Custom' : ''}
             </Label>
-            <Strong style={{ marginTop: 4 }}>{exercise.name}</Strong>
+            <Strong style={{ marginTop: 4 }}>{exercise.name.toUpperCase()}</Strong>
+            <Label style={{ marginTop: 6 }}>{libraryTrackingLine(exercise)}</Label>
             <Body style={{ marginTop: 6 }}>{exercise.instructions}</Body>
             <Body style={{ marginTop: 6, color: theme.color.muted }}>{exercise.safetyNotes}</Body>
-            <Body style={{ marginTop: 6, color: theme.color.muted }}>
-              Default {exercise.defaultWorkDurationSeconds}s / {exercise.defaultRestDurationSeconds}s · difficulty{' '}
-              {exercise.difficulty}/5
-            </Body>
           </Card>
         ))}
         <Button label="Back" variant="ghost" onPress={() => router.back()} />

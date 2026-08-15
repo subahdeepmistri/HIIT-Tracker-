@@ -115,7 +115,10 @@ export default function ProgressScreen() {
 
         <Card>
           <Label>Heart rate</Label>
-          <Body style={{ marginTop: 8 }}>Heart-rate data unavailable</Body>
+          <Body style={{ marginTop: 8 }}>No compatible heart-rate sensor is connected.</Body>
+          <Body style={{ marginTop: 6, color: theme.color.muted, fontSize: 13 }}>
+            Connect a supported device to see heart-rate data during workouts. This app never estimates heart rate.
+          </Body>
         </Card>
 
         {guidance ? (

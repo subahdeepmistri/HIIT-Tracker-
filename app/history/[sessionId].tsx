@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { isValue } from '@/src/domain/metrics';
 import { Units } from '@/src/domain/units';
 import { calculateSessionMetrics } from '@/src/engine/calc/metrics';
+import { plannedActualRows } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -47,8 +48,10 @@ export default function SessionDetailScreen() {
                   R{row.roundIndex} {row.phase} · {row.exerciseNameSnapshot}
                 </Strong>
                 <Body style={{ color: theme.color.muted }}>
-                  Planned {row.plannedSeconds}s · Actual {row.actualSeconds.toFixed(1)}s · {row.outcome}
-                  {row.plannedReps != null ? ` · reps ${row.actualReps ?? 0}/${row.plannedReps}` : ''}
+                  {plannedActualRows(row)
+                    .map((pair) => `${pair.metric} ${pair.planned} / ${pair.actual}`)
+                    .join(' · ')}{' '}
+                  · {row.outcome}
                 </Body>
               </View>
             ))}

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Units } from '@/src/domain/units';
 import { planWorkout } from '@/src/engine/workout/planner';
+import { exerciseTrackingLine } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -36,12 +37,16 @@ export default function WorkoutDetailScreen() {
         <Heading>{plan.workout.name}</Heading>
         {plan.workout.notes ? <Body>{plan.workout.notes}</Body> : null}
         <Card>
+          <Body style={{ color: theme.color.muted, fontSize: 13, marginBottom: 12 }}>
+            Training duration includes work and rest between intervals. Countdown is preparation time and is not included.
+          </Body>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
             <Fact label="Exercises" value={String(planned.exerciseCount)} />
             <Fact label="Rounds" value={String(planned.rounds)} />
             <Fact label="Duration" value={Units.formatCompactDuration(planned.plannedDurationSeconds)} />
             <Fact label="Work" value={Units.formatCompactDuration(planned.plannedWorkSeconds)} />
             <Fact label="Rest" value={Units.formatCompactDuration(planned.plannedRestSeconds)} />
+            <Fact label="Countdown" value={`${settings.countdownSeconds}s`} />
           </View>
         </Card>
         <Card>
@@ -50,13 +55,9 @@ export default function WorkoutDetailScreen() {
             {plan.exercises.map((item, index) => (
               <View key={item.id}>
                 <Strong>
-                  {index + 1}. {item.exercise.name}
+                  {index + 1}. {item.exercise.name.toUpperCase()}
                 </Strong>
-                <Body style={{ color: theme.color.muted }}>
-                  {item.plannedWorkSeconds}s work · {item.plannedRestSeconds}s rest
-                  {item.plannedReps ? ` · target ${item.plannedReps} reps` : ''}
-                  {item.plannedDistance ? ` · ${item.plannedDistance} ${item.distanceUnit ?? ''}` : ''}
-                </Body>
+                <Body style={{ color: theme.color.muted }}>{exerciseTrackingLine(item)}</Body>
               </View>
             ))}
           </View>

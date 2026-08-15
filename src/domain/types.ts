@@ -72,6 +72,7 @@ export interface User {
   displayName?: string;
   onboardingCompletedAt?: number;
   onboardingStep?: number;
+  onboardingVersion?: number;
   createdAt: number;
 }
 

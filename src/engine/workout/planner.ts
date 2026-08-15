@@ -121,11 +121,25 @@ export function planWorkout(input: PlannerInput): PlannedWorkout {
     slots,
     plannedWorkSeconds,
     plannedRestSeconds,
-    plannedDurationSeconds:
-      input.countdownSeconds + plannedWorkSeconds + plannedRestSeconds,
+    plannedDurationSeconds: plannedWorkSeconds + plannedRestSeconds,
   };
 }
 
+export function calculateWorkDuration(plan: Pick<PlannedWorkout, 'plannedWorkSeconds'>): number {
+  return plan.plannedWorkSeconds;
+}
+
+export function calculateRestDuration(plan: Pick<PlannedWorkout, 'plannedRestSeconds'>): number {
+  return plan.plannedRestSeconds;
+}
+
+/** Work + rest between intervals. Excludes countdown and the omitted final rest. */
+export function calculateTrainingDuration(
+  plan: Pick<PlannedWorkout, 'plannedWorkSeconds' | 'plannedRestSeconds'>,
+): number {
+  return plan.plannedWorkSeconds + plan.plannedRestSeconds;
+}
+
 export function plannedDurationSeconds(input: PlannerInput): number {
-  return planWorkout(input).plannedDurationSeconds;
+  return calculateTrainingDuration(planWorkout(input));
 }

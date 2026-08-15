@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { asId } from '../src/domain/ids';
+import { Units } from '../src/domain/units';
 import type { Exercise, User, UserSettings, Workout, WorkoutExercise } from '../src/domain/types';
 import {
   ONBOARDING_STEP_COUNT,
+  ONBOARDING_VERSION,
   SKIP_DEFAULTS,
   applySkipDefaults,
   clampOnboardingStep,
@@ -11,6 +13,8 @@ import {
   isOnboardingComplete,
   markOnboardingComplete,
   morningHiitPreview,
+  resetOnboarding,
+  shouldApplySkipDefaults,
 } from '../src/features/onboarding/logic';
 import { planWorkout } from '../src/engine/workout/planner';
 
@@ -57,6 +61,30 @@ describe('onboarding completion', () => {
   it('reopening after completion stays complete', () => {
     const next = markOnboardingComplete(user(), 2);
     expect(isOnboardingComplete(next)).toBe(true);
+    expect(next.onboardingVersion).toBe(ONBOARDING_VERSION);
+  });
+
+  it('treats a completed user on an older flow version as incomplete', () => {
+    expect(
+      isOnboardingComplete(
+        user({ onboardingCompletedAt: 99, onboardingVersion: ONBOARDING_VERSION - 1 }),
+      ),
+    ).toBe(false);
+    expect(isOnboardingComplete(user({ onboardingCompletedAt: 99 }))).toBe(false);
+  });
+
+  it('replay keeps settings and existing completion timestamp', () => {
+    const finished = markOnboardingComplete(user({ onboardingStep: 4 }), 50);
+    const replayed = resetOnboarding(finished);
+    expect(replayed.onboardingCompletedAt).toBe(50);
+    expect(replayed.onboardingVersion).toBe(0);
+    expect(isOnboardingComplete(replayed)).toBe(false);
+    expect(shouldApplySkipDefaults(replayed)).toBe(false);
+  });
+
+  it('applies skip defaults only on first launch', () => {
+    expect(shouldApplySkipDefaults(user())).toBe(true);
+    expect(shouldApplySkipDefaults(user({ onboardingCompletedAt: 1 }))).toBe(false);
   });
 });
 
@@ -154,7 +182,8 @@ describe('dynamic duration', () => {
       countdownSeconds: 3,
     }).plannedDurationSeconds;
     expect(duration).toBe(expected);
-    expect(duration).toBe(3 + 40 * 5 + 20 * 4);
+    expect(duration).toBe(40 * 5 + 20 * 4);
+    expect(Units.formatCompactDuration(duration)).toBe('4m 40s');
   });
 
   it('recalculates when work/rest/rounds change', () => {

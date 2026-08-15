@@ -6,6 +6,7 @@ import { workRestRatio, type WorkRestAnalysis } from './ratio';
 
 export interface SessionMetrics {
   totalDurationSeconds: Metric<number>;
+  elapsedSeconds: Metric<number>;
   totalActiveSeconds: Metric<number>;
   totalRestSeconds: Metric<number>;
   exerciseCount: Metric<number>;
@@ -40,10 +41,11 @@ export function calculateSessionMetrics(
   const rest = intervals.filter((row) => row.phase === 'REST' || row.phase === 'TRANSITION');
 
   const endedAt = session.endedAt ?? now;
-  const totalDurationSeconds = Math.max(0, (endedAt - session.startedAt) / 1000);
+  const elapsedSeconds = Math.max(0, (endedAt - session.startedAt) / 1000);
 
   const totalActiveSeconds = sum(work.map((row) => row.actualSeconds));
   const totalRestSeconds = sum(rest.map((row) => row.actualSeconds));
+  const trainingDurationSeconds = calculateTrainingDurationFromRecorded(totalActiveSeconds, totalRestSeconds);
   const plannedWorkSeconds = sum(work.map((row) => row.plannedSeconds));
   const plannedRepsList = work.map((row) => row.plannedReps).filter((n): n is number => n != null);
   const actualRepsList = work.map((row) => row.actualReps).filter((n): n is number => n != null);
@@ -78,7 +80,8 @@ export function calculateSessionMetrics(
   );
 
   return {
-    totalDurationSeconds: value(totalDurationSeconds),
+    totalDurationSeconds: value(trainingDurationSeconds),
+    elapsedSeconds: value(elapsedSeconds),
     totalActiveSeconds: value(totalActiveSeconds),
     totalRestSeconds: value(totalRestSeconds),
     exerciseCount: value(exerciseIds.size),
@@ -133,6 +136,11 @@ function countCompletedRounds(
 
 function sum(values: number[]): number {
   return values.reduce((total, n) => total + n, 0);
+}
+
+/** Work + rest between intervals. Excludes countdown and omitted final rest. */
+export function calculateTrainingDurationFromRecorded(workSeconds: number, restSeconds: number): number {
+  return Math.max(0, workSeconds) + Math.max(0, restSeconds);
 }
 
 export function metricNumber(metric: Metric<number>): number | undefined {

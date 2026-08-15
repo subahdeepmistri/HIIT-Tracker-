@@ -8,7 +8,7 @@ export const DEFAULTS = {
   liveTickMs: 200,
   minTouchTarget: 48,
   liveTouchTarget: 64,
-  dbVersion: 1,
+  dbVersion: 2,
   storageKey: '@hiit-tracker/db',
   legacyStorageKey: '@volt/db',
   sessionPersistKey: '@hiit-tracker/live-session',

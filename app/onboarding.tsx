@@ -20,6 +20,7 @@ import {
   isOnboardingComplete,
   markOnboardingComplete,
   morningHiitPreview,
+  shouldApplySkipDefaults,
 } from '@/src/features/onboarding/logic';
 import { PresetRow } from '@/src/features/onboarding/PresetRow';
 import { ProgressDots } from '@/src/features/onboarding/ProgressDots';
@@ -51,9 +52,8 @@ export default function OnboardingScreen() {
         workSeconds: settings.defaultWorkSeconds,
         restSeconds: settings.defaultRestSeconds,
         rounds: settings.defaultRounds,
-        countdownSeconds: settings.countdownSeconds,
       }),
-    [settings.defaultWorkSeconds, settings.defaultRestSeconds, settings.defaultRounds, settings.countdownSeconds],
+    [settings.defaultWorkSeconds, settings.defaultRestSeconds, settings.defaultRounds],
   );
 
   const morningPlan = db.workouts.plan(MORNING_HIIT_ID as never);
@@ -69,11 +69,9 @@ export default function OnboardingScreen() {
   }
 
   async function skipSetup() {
-    await db.settings.update(applySkipDefaults(settings));
-    await completeAndGo('/');
-  }
-
-  async function finishRemaining() {
+    if (shouldApplySkipDefaults(user)) {
+      await db.settings.update(applySkipDefaults(settings));
+    }
     await completeAndGo('/');
   }
 
@@ -81,13 +79,13 @@ export default function OnboardingScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }} edges={['top', 'bottom']}>
       <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4, flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
-          <ProgressDots total={ONBOARDING_STEP_COUNT} index={step} />
+          <ProgressDots total={ONBOARDING_STEP_COUNT} index={step} reducedMotion={reduced} />
         </View>
         {step < ONBOARDING_STEP_COUNT - 1 ? (
           <Button
-            label={step === 0 ? 'Skip setup' : 'Skip'}
+            label="Skip setup"
             variant="ghost"
-            onPress={() => void (step === 0 ? skipSetup() : finishRemaining())}
+            onPress={() => void skipSetup()}
           />
         ) : null}
       </View>
@@ -130,8 +128,7 @@ export default function OnboardingScreen() {
               large
               onPress={() => void completeAndGo(morning ? `/workouts/${MORNING_HIIT_ID}` : '/')}
             />
-            <Button label="Go to home" variant="ghost" onPress={() => void completeAndGo('/')} />
-            <Button label="Back" variant="ghost" onPress={() => setStep(4)} />
+            <Button label="Go to Home" variant="ghost" onPress={() => void completeAndGo('/')} />
           </>
         ) : null}
       </View>
@@ -142,14 +139,15 @@ export default function OnboardingScreen() {
 function Welcome({ enter }: { enter?: Entering }) {
   const theme = useTheme();
   return (
-    <View style={{ flex: 1, justifyContent: 'center', gap: 20 }}>
+    <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 12, gap: 22 }}>
       <Animated.View entering={enter}>
         <Label>HIIT Tracker</Label>
-        <Heading style={{ fontSize: 64, lineHeight: 62, marginTop: 10 }}>
+        <Heading style={{ fontSize: 56, lineHeight: 56, marginTop: 12 }}>
           Train.{'\n'}Track.{'\n'}
           <Text style={{ color: theme.color.accent }}>Improve.</Text>
         </Heading>
       </Animated.View>
+      <View style={{ width: 48, height: 3, borderRadius: 99, backgroundColor: theme.color.accent }} />
       <Animated.View entering={enter}>
         <Body style={{ color: theme.color.muted, fontSize: 18, lineHeight: 28 }}>
           Your training.{'\n'}Your data.{'\n'}Your progress.
@@ -171,21 +169,21 @@ function HowItWorks({ enter }: { enter?: Entering }) {
         delay={40}
         icon="flash"
         title="Train"
-        body="Structured intervals. Follow work and rest without watching the clock."
+        body="Structured intervals."
       />
       <ConceptCard
         enter={enter}
         delay={90}
         icon="timer"
         title="Track"
-        body="Record actual performance. Log real time, reps, and distance."
+        body="Record actual performance."
       />
       <ConceptCard
         enter={enter}
         delay={140}
         icon="trending-up"
         title="Improve"
-        body="See your progress. Compare sessions and keep only legitimate PRs."
+        body="See your progress and legitimate PRs."
       />
     </View>
   );
@@ -248,14 +246,14 @@ function TrainingPreferences({ enter }: { enter?: Entering }) {
           label="Default work interval"
           options={WORK_PRESETS}
           value={settings.defaultWorkSeconds}
-          format={(value) => `${value} sec`}
+          format={(value) => `${value}s`}
           onChange={(value) => void db.settings.update({ defaultWorkSeconds: value })}
         />
         <PresetRow
           label="Default rest interval"
           options={REST_PRESETS}
           value={settings.defaultRestSeconds}
-          format={(value) => `${value} sec`}
+          format={(value) => `${value}s`}
           onChange={(value) => void db.settings.update({ defaultRestSeconds: value })}
         />
         <PresetRow
@@ -281,22 +279,25 @@ function DefaultPreview({
   return (
     <View style={{ gap: 20 }}>
       <Animated.View entering={enter}>
-        <Heading>Your default session</Heading>
+        <Heading>Your default intervals</Heading>
         <Body style={{ marginTop: 8 }}>This is what those settings add up to — calculated by the same planner used in workouts.</Body>
       </Animated.View>
       <Animated.View entering={enter}>
         <Card>
-          <Label>Your default session</Label>
+          <Label>Your default intervals</Label>
           <View style={{ flexDirection: 'row', marginTop: 20, gap: 12 }}>
             <PreviewStat value={`${settings.defaultWorkSeconds}s`} label="Work" color={theme.color.accent} />
             <PreviewStat value={`${settings.defaultRestSeconds}s`} label="Rest" color={theme.color.rest} />
-            <PreviewStat value={`× ${settings.defaultRounds}`} label="Rounds" />
+            <PreviewStat value={`×${settings.defaultRounds}`} label="Rounds" />
           </View>
           <View style={{ marginTop: 24 }}>
-            <Label>Estimated session duration</Label>
+            <Label>Estimated training duration</Label>
             <Strong style={{ fontFamily: theme.type.display, fontSize: 40, marginTop: 6 }}>
               {Units.formatCompactDuration(durationSeconds)}
             </Strong>
+            <Body style={{ color: theme.color.muted, fontSize: 13, marginTop: 10 }}>
+              Training duration includes work and rest between intervals. The final rest and pre-workout countdown are not included.
+            </Body>
           </View>
         </Card>
       </Animated.View>
@@ -341,16 +342,19 @@ function Cues({ enter }: { enter?: Entering }) {
           <SettingToggle
             label="Interval countdown"
             value={settings.countdownSound}
+            disabled={!settings.soundEnabled}
             onChange={(value) => void db.settings.update({ countdownSound: value })}
           />
           <SettingToggle
             label="Rest ending"
             value={settings.restEndingAlert}
+            disabled={!settings.soundEnabled}
             onChange={(value) => void db.settings.update({ restEndingAlert: value })}
           />
           <SettingToggle
             label="Workout complete"
             value={settings.completionSound}
+            disabled={!settings.soundEnabled}
             onChange={(value) => void db.settings.update({ completionSound: value })}
           />
         </Card>
@@ -367,16 +371,19 @@ function Cues({ enter }: { enter?: Entering }) {
           <SettingToggle
             label="Interval changes"
             value={settings.hapticIntervalChanges !== false}
+            disabled={!settings.hapticsEnabled}
             onChange={(value) => void db.settings.update({ hapticIntervalChanges: value })}
           />
           <SettingToggle
             label="Countdown"
             value={settings.hapticCountdown !== false}
+            disabled={!settings.hapticsEnabled}
             onChange={(value) => void db.settings.update({ hapticCountdown: value })}
           />
           <SettingToggle
             label="Workout complete"
             value={settings.hapticComplete !== false}
+            disabled={!settings.hapticsEnabled}
             onChange={(value) => void db.settings.update({ hapticComplete: value })}
           />
         </Card>

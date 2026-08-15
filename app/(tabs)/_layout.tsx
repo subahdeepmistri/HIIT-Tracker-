@@ -3,12 +3,13 @@ import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 
 import { useVolt } from '@/src/features/app/VoltProvider';
+import { isOnboardingComplete } from '@/src/features/onboarding/logic';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function TabLayout() {
   const theme = useTheme();
   const { db } = useVolt();
-  if (!db.user.get().onboardingCompletedAt) {
+  if (!isOnboardingComplete(db.user.get())) {
     return <Redirect href="/onboarding" />;
   }
 
@@ -25,6 +26,9 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: theme.color.accent,
         tabBarInactiveTintColor: theme.color.muted,
+        tabBarActiveBackgroundColor: 'transparent',
+        tabBarInactiveBackgroundColor: 'transparent',
+        tabBarItemStyle: { backgroundColor: 'transparent' },
         tabBarLabelStyle: {
           fontFamily: theme.type.uiStrong,
           fontSize: 11,

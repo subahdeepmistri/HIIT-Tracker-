@@ -6,7 +6,7 @@ import { planWorkout } from '../src/engine/workout/planner';
 import { validateWorkoutDraft } from '../src/domain/validation';
 
 describe('planner', () => {
-  it('omits rest after the final interval and includes countdown', () => {
+  it('omits the final rest and excludes countdown from training duration', () => {
     const plan = planWorkout({
       workout: workout(2),
       items: [item(0, 40, 20), item(1, 40, 20)],
@@ -14,7 +14,22 @@ describe('planner', () => {
     });
     const last = plan.slots[plan.slots.length - 1];
     expect(last.phase).toBe('WORK');
-    expect(plan.plannedDurationSeconds).toBe(3 + 40 * 4 + 20 * 3);
+    expect(plan.countdownSeconds).toBe(3);
+    expect(plan.plannedDurationSeconds).toBe(40 * 4 + 20 * 3);
+  });
+
+  it('calculates Morning HIIT training duration as 29m 40s', () => {
+    const plan = planWorkout({
+      workout: workout(5),
+      items: [0, 1, 2, 3, 4, 5].map((index) => item(index, 40, 20)),
+      countdownSeconds: 3,
+    });
+    expect(plan.slots.filter((slot) => slot.phase === 'WORK')).toHaveLength(30);
+    expect(plan.slots.filter((slot) => slot.phase === 'REST')).toHaveLength(29);
+    expect(plan.plannedWorkSeconds).toBe(1200);
+    expect(plan.plannedRestSeconds).toBe(580);
+    expect(plan.plannedDurationSeconds).toBe(1780);
+    expect(plan.plannedDurationSeconds).not.toBe(1783);
   });
 
   it('rejects negative and empty drafts', () => {
