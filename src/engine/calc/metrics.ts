@@ -1,5 +1,6 @@
 import type { IntervalSession, WorkoutSession } from '../../domain/types';
 import { insufficient, isValue, type Metric, value } from '../../domain/metrics';
+import { Units } from '../../domain/units';
 import { completionPercent } from './completion';
 import { workRestRatio, type WorkRestAnalysis } from './ratio';
 
@@ -23,6 +24,9 @@ export interface SessionMetrics {
   actualWorkSeconds: Metric<number>;
   plannedReps: Metric<number>;
   actualReps: Metric<number>;
+  plannedDistanceMeters: Metric<number>;
+  actualDistanceMeters: Metric<number>;
+  distanceCompletionPercent: Metric<number>;
   bestInterval: Metric<IntervalSession>;
   weakestInterval: Metric<IntervalSession>;
 }
@@ -63,6 +67,16 @@ export function calculateSessionMetrics(
   const totalReps = actualRepsList.length > 0 ? sum(actualRepsList) : null;
   const plannedReps = plannedRepsList.length > 0 ? sum(plannedRepsList) : null;
 
+  const plannedDistanceMeters = sum(
+    work
+      .filter((row) => row.plannedDistance != null)
+      .map((row) => Units.toMeters(row.plannedDistance!, row.distanceUnit ?? 'm')),
+  );
+  const actualDistanceMetersList = work.filter((row) => row.actualDistance != null);
+  const actualDistanceMeters = sum(
+    actualDistanceMetersList.map((row) => Units.toMeters(row.actualDistance!, row.distanceUnit ?? 'm')),
+  );
+
   return {
     totalDurationSeconds: value(totalDurationSeconds),
     totalActiveSeconds: value(totalActiveSeconds),
@@ -87,6 +101,16 @@ export function calculateSessionMetrics(
     actualWorkSeconds: value(totalActiveSeconds),
     plannedReps: plannedReps == null ? insufficient('no planned reps') : value(plannedReps),
     actualReps: totalReps == null ? insufficient('no reps recorded') : value(totalReps),
+    plannedDistanceMeters:
+      plannedDistanceMeters > 0 || work.some((row) => row.plannedDistance != null)
+        ? value(plannedDistanceMeters)
+        : insufficient('no planned distance'),
+    actualDistanceMeters:
+      actualDistanceMetersList.length === 0 ? insufficient('no distance recorded') : value(actualDistanceMeters),
+    distanceCompletionPercent: completionPercent(
+      plannedDistanceMeters > 0 ? plannedDistanceMeters : undefined,
+      actualDistanceMetersList.length > 0 ? actualDistanceMeters : undefined,
+    ),
     bestInterval: ranked.length >= 2 ? value(ranked[0]) : insufficient('need at least two comparable intervals'),
     weakestInterval: ranked.length >= 2 ? value(ranked[ranked.length - 1]) : insufficient('need at least two comparable intervals'),
   };

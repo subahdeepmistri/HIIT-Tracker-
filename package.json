@@ -1,5 +1,5 @@
 {
-  "name": "volt",
+  "name": "hiit-tracker",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
@@ -46,7 +46,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }

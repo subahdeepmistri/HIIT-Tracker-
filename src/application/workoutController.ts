@@ -43,6 +43,8 @@ export interface ControllerDeps {
 export class WorkoutController {
   private state: EngineState = createIdleState();
   private readonly clock: Clock;
+  private tickLock = false;
+  private lastPersistedJson: string | null = null;
 
   constructor(private readonly deps: ControllerDeps) {
     this.clock = deps.clock ?? new SystemClock();
@@ -106,18 +108,32 @@ export class WorkoutController {
   }
 
   async tick(): Promise<{ state: EngineState; finalized?: FinalizeResult }> {
-    const wasLive = this.state.status === 'LIVE';
-    const before = this.state.intervals.length;
-    this.state = tick(this.state, this.clock.now());
-    if (this.state.intervals.length !== before) {
-      await this.flushIntervals();
+    if (this.tickLock) return { state: this.state };
+    this.tickLock = true;
+    try {
+      const wasLive = this.state.status === 'LIVE';
+      const before = this.state.intervals.length;
+      const previousStatus = this.state.status;
+      this.state = tick(this.state, this.clock.now());
+      const phaseChanged = this.state.intervals.length !== before || this.state.status !== previousStatus;
+      if (this.state.intervals.length !== before) {
+        await this.flushIntervals();
+      }
+      if (phaseChanged) {
+        await this.persist();
+      }
+      if (wasLive && this.state.status === 'COMPLETED') {
+        const finalized = await this.finalize('COMPLETED');
+        return { state: this.state, finalized };
+      }
+      return { state: this.state };
+    } finally {
+      this.tickLock = false;
     }
-    await this.persist();
-    if (wasLive && this.state.status === 'COMPLETED') {
-      const finalized = await this.finalize('COMPLETED');
-      return { state: this.state, finalized };
-    }
-    return { state: this.state };
+  }
+
+  async checkpoint(): Promise<void> {
+    await this.persist(true);
   }
 
   async pause(): Promise<EngineState> {
@@ -173,12 +189,17 @@ export class WorkoutController {
     await this.deps.persistLive?.(null);
   }
 
-  private async persist(): Promise<void> {
+  private async persist(force = false): Promise<void> {
     if (!this.state.sessionId || this.state.status === 'IDLE') {
-      await this.deps.persistLive?.(null);
+      if (this.lastPersistedJson !== null || force) {
+        this.lastPersistedJson = null;
+        await this.deps.persistLive?.(null);
+      }
       return;
     }
     const json = serializeEngine(this.state);
+    if (!force && json === this.lastPersistedJson) return;
+    this.lastPersistedJson = json;
     await this.deps.persistLive?.(json);
     const existing = this.deps.db.sessions.get(this.state.sessionId as SessionId);
     if (existing) {

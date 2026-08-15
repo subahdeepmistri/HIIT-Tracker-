@@ -38,7 +38,7 @@ export default function ProfileScreen() {
             performance: db.performance.list(),
             rows,
           });
-    const file = `${FileSystem.cacheDirectory}volt-export.${format}`;
+    const file = `${FileSystem.cacheDirectory}hiit-tracker-export.${format}`;
     await FileSystem.writeAsStringAsync(file, payload);
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(file);

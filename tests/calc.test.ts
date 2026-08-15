@@ -81,6 +81,38 @@ describe('calculateSessionMetrics', () => {
     expect(metrics.completedIntervals).toEqual({ kind: 'value', value: 1 });
     expect(metrics.totalActiveSeconds.kind).toBe('value');
   });
+
+  it('treats recorded zero reps as real data, not missing data', () => {
+    const metrics = calculateSessionMetrics(
+      baseSession(),
+      [workInterval({ plannedReps: 20, actualReps: 0 })],
+      80_000,
+    );
+    expect(metrics.actualReps).toEqual({ kind: 'value', value: 0 });
+    expect(metrics.repCompletionPercent).toEqual({ kind: 'value', value: 0 });
+  });
+
+  it('computes distance completion from recorded meters only', () => {
+    const metrics = calculateSessionMetrics(
+      baseSession(),
+      [
+        workInterval({
+          plannedDistance: 1,
+          actualDistance: 0.8,
+          distanceUnit: 'km',
+        }),
+      ],
+      80_000,
+    );
+    expect(metrics.plannedDistanceMeters).toEqual({ kind: 'value', value: 1000 });
+    expect(metrics.actualDistanceMeters).toEqual({ kind: 'value', value: 800 });
+    expect(metrics.distanceCompletionPercent).toEqual({ kind: 'value', value: 80 });
+  });
+
+  it('does not invent distance completion when distance was not recorded', () => {
+    const metrics = calculateSessionMetrics(baseSession(), [workInterval({})], 80_000);
+    expect(metrics.distanceCompletionPercent.kind).toBe('insufficient');
+  });
 });
 
 function baseSession(): WorkoutSession {

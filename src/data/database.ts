@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { DEFAULTS } from '../config/defaults';
 import { AUDIO_DEFAULTS } from '../config/defaults';
+import { localDateKey } from '../domain/date';
 import { createId, type SessionId, type WorkoutId } from '../domain/ids';
 import type {
   Exercise,
@@ -224,13 +225,19 @@ export class VoltDatabase {
   async init(): Promise<void> {
     if (this.ready) return;
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const raw =
+        (await AsyncStorage.getItem(STORAGE_KEY)) ??
+        (await AsyncStorage.getItem(DEFAULTS.legacyStorageKey));
       if (raw) {
         const parsed = JSON.parse(raw) as VoltSnapshot;
         if (parsed.version === DB_VERSION) {
           this.snapshot = parsed;
+          if (!(await AsyncStorage.getItem(STORAGE_KEY))) {
+            await this.save();
+          }
         } else {
           this.snapshot = emptySnapshot();
+          await this.save();
         }
       } else {
         this.snapshot = emptySnapshot();
@@ -256,16 +263,14 @@ export class VoltDatabase {
     this.snapshot.exercises = this.snapshot.exercises.filter((row) => !row.isCustom);
     this.snapshot.workouts = STARTER_WORKOUTS.map((row) => ({ ...row }));
     this.snapshot.workoutExercises = STARTER_WORKOUT_EXERCISES.map((row) => ({ ...row }));
+    await Promise.all([
+      AsyncStorage.removeItem(DEFAULTS.sessionPersistKey),
+      AsyncStorage.removeItem(DEFAULTS.legacySessionPersistKey),
+    ]);
     await this.save();
   }
 }
 
-export function localDateKey(timestamp: number): string {
-  const date = new Date(timestamp);
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, '0');
-  const d = `${date.getDate()}`.padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+export { localDateKey } from '../domain/date';
 
 export const db = new VoltDatabase();

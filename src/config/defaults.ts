@@ -9,8 +9,10 @@ export const DEFAULTS = {
   minTouchTarget: 48,
   liveTouchTarget: 64,
   dbVersion: 1,
-  storageKey: '@volt/db',
-  sessionPersistKey: '@volt/live-session',
+  storageKey: '@hiit-tracker/db',
+  legacyStorageKey: '@volt/db',
+  sessionPersistKey: '@hiit-tracker/live-session',
+  legacySessionPersistKey: '@volt/live-session',
 } as const;
 
 export const AUDIO_DEFAULTS = {

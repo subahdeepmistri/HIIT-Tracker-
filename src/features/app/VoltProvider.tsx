@@ -30,10 +30,18 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
       new WorkoutController({
         db,
         persistLive: async (json) => {
-          if (json == null) await AsyncStorage.removeItem(DEFAULTS.sessionPersistKey);
-          else await AsyncStorage.setItem(DEFAULTS.sessionPersistKey, json);
+          if (json == null) {
+            await Promise.all([
+              AsyncStorage.removeItem(DEFAULTS.sessionPersistKey),
+              AsyncStorage.removeItem(DEFAULTS.legacySessionPersistKey),
+            ]);
+          } else {
+            await AsyncStorage.setItem(DEFAULTS.sessionPersistKey, json);
+          }
         },
-        loadLive: () => AsyncStorage.getItem(DEFAULTS.sessionPersistKey),
+        loadLive: async () =>
+          (await AsyncStorage.getItem(DEFAULTS.sessionPersistKey)) ??
+          (await AsyncStorage.getItem(DEFAULTS.legacySessionPersistKey)),
       }),
     [],
   );

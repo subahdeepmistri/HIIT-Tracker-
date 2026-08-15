@@ -320,9 +320,11 @@ function closeCurrentSlot(state: EngineState, endedAt: number, outcome: Interval
     plannedSeconds: slot.plannedSeconds,
     actualSeconds,
     plannedReps: slot.plannedReps,
-    actualReps: slot.phase === 'WORK' ? state.currentReps || undefined : undefined,
+    actualReps:
+      slot.phase === 'WORK' && slot.plannedReps != null ? state.currentReps : undefined,
     plannedDistance: slot.plannedDistance,
-    actualDistance: slot.phase === 'WORK' ? state.currentDistance || undefined : undefined,
+    actualDistance:
+      slot.phase === 'WORK' && slot.plannedDistance != null ? state.currentDistance : undefined,
     distanceUnit: slot.distanceUnit,
     trackingMode: slot.trackingMode,
     startedAt: state.phaseStartedAt,
@@ -368,8 +370,9 @@ function currentSlot(state: EngineState): PlannedSlot | undefined {
 }
 
 function plannedMsForPhase(state: EngineState): number {
-  if (state.phase === 'COUNTDOWN') return state.countdownSeconds * 1000;
-  if (state.phase === 'ROUND_COMPLETE') return state.roundCompleteSeconds * 1000;
+  const phase = state.phase === 'PAUSED' ? (state.pausedFrom ?? state.phase) : state.phase;
+  if (phase === 'COUNTDOWN') return state.countdownSeconds * 1000;
+  if (phase === 'ROUND_COMPLETE') return state.roundCompleteSeconds * 1000;
   const slot = currentSlot(state);
   return (slot?.plannedSeconds ?? 0) * 1000;
 }

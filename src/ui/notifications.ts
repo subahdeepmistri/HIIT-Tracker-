@@ -9,7 +9,7 @@ export async function syncReminders(settings: UserSettings): Promise<void> {
     if (!permission.granted) return;
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'VOLT',
+        title: 'HIIT Tracker',
         body: `Your planned session is scheduled for ${pad(settings.reminderHour)}:${pad(settings.reminderMinute)}.`,
       },
       trigger: {

@@ -58,6 +58,29 @@ describe('timestamp clock', () => {
     expect(work?.actualSeconds).toBe(12);
     expect(work?.outcome).toBe('SKIPPED');
   });
+
+  it('preserves countdown remaining across pause/resume', () => {
+    const clock = new FrozenClock(0);
+    let state = startWorkout(oneWorkPlan(10), clock.now(), { roundCompleteSeconds: 0 });
+    clock.advance(1_000);
+    state = pause(state, clock.now());
+    clock.advance(5_000);
+    state = resume(state, clock.now());
+    expect(getLiveView(state, clock.now()).remainingMs).toBe(2_000);
+    expect(state.phase).toBe('COUNTDOWN');
+  });
+
+  it('stores zero recorded reps instead of dropping the field', () => {
+    const clock = new FrozenClock(0);
+    const plan = oneWorkPlan(40, { plannedReps: 15, trackingMode: 'REPS' });
+    let state = startWorkout(plan, clock.now(), { roundCompleteSeconds: 0 });
+    clock.advance(3_000);
+    state = tick(state, clock.now());
+    clock.advance(5_000);
+    state = skip(state, clock.now());
+    expect(state.intervals[0]?.plannedReps).toBe(15);
+    expect(state.intervals[0]?.actualReps).toBe(0);
+  });
 });
 
 describe('remainingMs', () => {
@@ -66,7 +89,10 @@ describe('remainingMs', () => {
   });
 });
 
-function oneWorkPlan(workSeconds: number) {
+function oneWorkPlan(
+  workSeconds: number,
+  extra?: { plannedReps?: number; trackingMode?: WorkoutExercise['trackingMode'] },
+) {
   const workout: Workout = {
     id: asId('wo'),
     name: 'Test',
@@ -97,9 +123,10 @@ function oneWorkPlan(workSeconds: number) {
     workoutId: workout.id,
     exerciseId: exercise.id,
     orderIndex: 0,
-    trackingMode: 'TIME',
+    trackingMode: extra?.trackingMode ?? 'TIME',
     plannedWorkSeconds: workSeconds,
     plannedRestSeconds: 0,
+    plannedReps: extra?.plannedReps,
     exercise,
   };
   return planWorkout({ workout, items: [item], countdownSeconds: 3 });

@@ -32,7 +32,7 @@ export default function OnboardingScreen() {
         </Label>
         {step === 0 ? (
           <>
-            <Heading>VOLT</Heading>
+            <Heading>HIIT Tracker</Heading>
             <Body>Train the interval. Measure the truth.</Body>
             <Body>A HIIT tracker that never overwrites your plan with what you actually did.</Body>
           </>
@@ -165,7 +165,7 @@ export default function OnboardingScreen() {
           {step < STEPS - 1 ? (
             <Button label="Continue" onPress={() => setStep((value) => value + 1)} />
           ) : (
-            <Button label="Enter VOLT" large onPress={() => void finish()} />
+            <Button label="Start training" large onPress={() => void finish()} />
           )}
         </View>
       </ScrollView>

@@ -1,10 +1,8 @@
-# VOLT
+# HIIT Tracker
 
-A production-quality, offline-first HIIT trainer.
+An offline-first HIIT training app.
 
-**Train the interval. Measure the truth.**
-
-VOLT never overwrites a planned workout with what you actually did. Every statistic on screen is computed from recorded session data, or it is shown as **Not enough data**.
+It never overwrites a planned workout with what you actually did. Every statistic on screen is computed from recorded session data, or it is shown as **Not enough data**.
 
 ## Why this stack
 
@@ -16,7 +14,7 @@ VOLT never overwrites a planned workout with what you actually did. Every statis
 | Timestamp-accurate timer | Pure state machine, no `setInterval` for elapsed time |
 | Preview without full Xcode | Expo web + Expo Go |
 
-The live timer is **not** network-dependent. A no-op `SyncPort` exists for a future backend.
+The live timer is **not** network-dependent. A no-op `SyncPort` exists for a future backend. Sync is not implemented.
 
 ## Architecture
 
@@ -25,7 +23,7 @@ UI (Expo Router)
   → WorkoutController
     → WorkoutEngine (timestamp state machine)
     → CalculationEngine / Score / PRs
-    → VoltDatabase (local)
+    → Local database
 ```
 
 Calculation logic does not live in React components.
@@ -36,11 +34,12 @@ Calculation logic does not live in React components.
 cd "/Volumes/SSD B/PROJECT-infinity/HITT Tracker"
 npm install
 npm test
+npm run typecheck
 npx expo start
 ```
 
 - Press `w` for a mobile-width web preview
-- Scan the QR code in Expo Go for haptics, audio, and keep-awake
+- Scan the QR code in Expo Go for haptics, keep-awake, and native audio
 
 ## Tests
 
@@ -48,7 +47,7 @@ npx expo start
 npm test
 ```
 
-Covers completion math, work:rest density, timer backgrounding, pause, skip (planned vs actual), score renormalization, and PR eligibility.
+Covers completion math, work:rest density, distance completion, timer backgrounding, pause, skip (planned vs actual), score renormalization, PRs, dashboard trends, and recovery empty states.
 
 ## Product rules
 

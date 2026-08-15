@@ -24,7 +24,8 @@ export default function LiveWorkoutScreen() {
     let mounted = true;
     const pulse = async () => {
       if (!controller.getState().sessionId) {
-        await controller.hydrateFromStorage();
+        const hydrated = await controller.hydrateFromStorage();
+        if (!hydrated) return;
       }
       const result = await controller.tick();
       if (!mounted) return;
@@ -40,6 +41,9 @@ export default function LiveWorkoutScreen() {
     }, DEFAULTS.liveTickMs);
 
     const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') {
+        void controller.checkpoint();
+      }
       if (state === 'active') void pulse();
     });
 

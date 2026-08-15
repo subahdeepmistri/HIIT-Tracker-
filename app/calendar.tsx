@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { localDateKey } from '@/src/data/database';
+import { localDateKey } from '@/src/domain/date';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';

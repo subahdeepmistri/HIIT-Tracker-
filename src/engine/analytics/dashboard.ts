@@ -1,4 +1,4 @@
-import { localDateKey } from '../../data/database';
+import { localDateKey } from '../../domain/date';
 import { isValue } from '../../domain/metrics';
 import type { IntervalSession, PerformanceRecord, WorkoutSession } from '../../domain/types';
 import type { ChartPoint } from '../../ui/charts/LineChart';
