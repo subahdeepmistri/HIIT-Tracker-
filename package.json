@@ -45,7 +45,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "expo export --platform web",
+    "build": "expo export --platform web && node scripts/inject-pwa-head.js",
+    "icons": "python3 scripts/build-pwa-icons.py",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

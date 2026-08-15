@@ -9,6 +9,11 @@
 # Expo Router is a client-side app. Deep links like /live/:id
 # and /workouts/:id are not real files. Send them to index.html
 # so the app router can handle them instead of Netlify's 404.
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
