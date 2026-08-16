@@ -1,4 +1,3 @@
-import { ResizeMode, Video } from 'expo-av';
 import React, { useEffect, useState } from 'react';
 import { Image, Platform, View } from 'react-native';
 
@@ -6,7 +5,7 @@ import { Label } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import type { MovementType } from '@/src/domain/types';
 import { canPlayDemoVideo, shouldAnimateDemoFrames } from './exerciseDemoLogic';
-import { getExerciseDemo } from './exerciseDemos';
+import type { ExerciseDemo as Demo } from './exerciseDemos';
 
 export function ExerciseDemo({
   exerciseId,
@@ -30,7 +29,7 @@ export function ExerciseDemo({
   captionPlacement?: 'below' | 'overlay' | 'none';
 }) {
   const theme = useTheme();
-  const demo = getExerciseDemo(exerciseId, movementType);
+  const [demo, setDemo] = useState<Demo | null>(null);
   const [frame, setFrame] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -41,10 +40,19 @@ export function ExerciseDemo({
   const showOverlayCaption = captionPlacement === 'overlay' && Boolean(caption);
 
   useEffect(() => {
+    let live = true;
+    setDemo(null);
     setFrame(0);
     setVideoReady(false);
     setVideoFailed(false);
-  }, [exerciseId]);
+    void import('./exerciseDemos').then((mod) => {
+      if (!live) return;
+      setDemo(mod.getExerciseDemo(exerciseId, movementType));
+    });
+    return () => {
+      live = false;
+    };
+  }, [exerciseId, movementType]);
 
   useEffect(() => {
     if (
@@ -96,7 +104,7 @@ export function ExerciseDemo({
           accessibilityIgnoresInvertColors
         />
         {useVideo && demo.video ? (
-          <Video
+          <NativeLoopVideo
             source={demo.video}
             style={{
               position: 'absolute',
@@ -105,13 +113,9 @@ export function ExerciseDemo({
               ...mediaStyle,
               opacity: videoReady ? 1 : 0,
             }}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay={!reducedMotion}
-            isLooping
-            isMuted
-            useNativeControls={false}
-            onReadyForDisplay={() => setVideoReady(true)}
-            onError={() => {
+            reducedMotion={reducedMotion}
+            onReady={() => setVideoReady(true)}
+            onFailed={() => {
               setVideoFailed(true);
               setVideoReady(false);
             }}
@@ -134,5 +138,46 @@ export function ExerciseDemo({
       </View>
       {showBelowCaption ? <Label>{caption ?? 'Form'}</Label> : null}
     </View>
+  );
+}
+
+function NativeLoopVideo({
+  source,
+  style,
+  reducedMotion,
+  onReady,
+  onFailed,
+}: {
+  source: unknown;
+  style: object;
+  reducedMotion?: boolean;
+  onReady: () => void;
+  onFailed: () => void;
+}) {
+  const [Video, setVideo] = useState<React.ComponentType<Record<string, unknown>> | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void import('expo-av').then((mod) => {
+      if (live) setVideo(() => mod.Video as React.ComponentType<Record<string, unknown>>);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (!Video) return null;
+  return (
+    <Video
+      source={source}
+      style={style}
+      resizeMode="cover"
+      shouldPlay={!reducedMotion}
+      isLooping
+      isMuted
+      useNativeControls={false}
+      onReadyForDisplay={onReady}
+      onError={onFailed}
+    />
   );
 }

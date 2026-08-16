@@ -1,7 +1,7 @@
 /* HIIT Tracker service worker.
    Chrome only shows "Install app" (not a bookmark shortcut) when a
    service worker with a real fetch handler controls the page. */
-const CACHE = 'hiit-tracker-v1';
+const CACHE = 'hiit-tracker-v2';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -34,11 +34,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  const isMedia = /\.(mp4|webm|mov)(\?|$)/i.test(url.pathname);
+  if (isMedia) return;
+
   event.respondWith(
     (async () => {
       try {
         const network = await fetch(event.request);
-        if (network && network.ok && url.origin === self.location.origin) {
+        if (network && network.ok && url.origin === self.location.origin && !isMedia) {
           const cache = await caches.open(CACHE);
           void cache.put(event.request, network.clone());
         }

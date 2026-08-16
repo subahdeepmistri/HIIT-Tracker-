@@ -38,6 +38,7 @@ const required = [
   'manifest.webmanifest',
   'sw.js',
   'favicon.ico',
+  'robots.txt',
   path.join('icons', 'icon-192.png'),
   path.join('icons', 'icon-512.png'),
   path.join('icons', 'icon-512-maskable.png'),
@@ -50,6 +51,7 @@ for (const rel of required) {
 }
 
 const tags = [
+  '<meta name="description" content="Offline-first HIIT trainer. Plan work and rest, record what you actually did, and track progress without invented calories or heart rate." />',
   '<link rel="manifest" href="/manifest.webmanifest" />',
   '<meta name="theme-color" content="#07080A" />',
   '<meta name="mobile-web-app-capable" content="yes" />',
@@ -64,12 +66,19 @@ const tags = [
 
 const htmlPath = path.join(dist, 'index.html');
 let html = fs.readFileSync(htmlPath, 'utf8');
-if (!html.includes('rel="manifest"')) {
+if (!html.includes('rel="manifest"') || !html.includes('name="description"')) {
   if (!html.includes('</head>')) {
     console.error('inject-pwa-head: no </head> in index.html');
     process.exit(1);
   }
-  html = html.replace('</head>', `    ${tags}\n  </head>`);
+  const inject = [];
+  if (!html.includes('name="description"')) {
+    inject.push(
+      '<meta name="description" content="Offline-first HIIT trainer. Plan work and rest, record what you actually did, and track progress without invented calories or heart rate." />',
+    );
+  }
+  if (!html.includes('rel="manifest"')) inject.push(tags);
+  html = html.replace('</head>', `    ${inject.join('\n    ')}\n  </head>`);
   fs.writeFileSync(htmlPath, html);
 }
 
@@ -78,5 +87,14 @@ if (!html.includes('rel="manifest"') || !html.includes('/icons/icon-512.png')) {
   console.error('inject-pwa-head: HTML is still missing PWA tags');
   process.exit(1);
 }
+const bootCss = `#hiit-boot{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;justify-content:center;padding:72px 20px 140px;box-sizing:border-box;background:#07080A;color:#F4F1EA;font-family:"Arial Narrow",Impact,system-ui,sans-serif}#hiit-boot .hiit-boot-label{font:600 12px/1 system-ui,sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:#9AA3B2}#hiit-boot h1{margin:12px 0 0;font-size:56px;line-height:56px;letter-spacing:-.6px;font-weight:700}#hiit-boot span{color:#E8FF3D}`;
+if (!html.includes('#hiit-boot{')) {
+  html = html.replace('</head>', `<style>${bootCss}</style>\n</head>`);
+}
+if (!html.includes('id="hiit-boot"')) {
+  const boot = `<div id="hiit-boot" aria-hidden="true"><div class="hiit-boot-label">HIIT Tracker</div><h1>Train.<br/>Track.<br/><span>Improve.</span></h1></div>`;
+  html = html.replace('<body>', `<body>${boot}`);
+}
+fs.writeFileSync(htmlPath, html);
 
 console.log('inject-pwa-head: PWA manifest, icons, and service worker are in dist/');

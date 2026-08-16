@@ -23,6 +23,13 @@ describe('PWA installability files', () => {
     expect(manifest.icons.some((icon) => icon.sizes === '512x512' && icon.purpose !== 'maskable')).toBe(true);
   });
 
+  it('ships a valid robots.txt so crawlers are not served the HTML app', () => {
+    const robots = readFileSync(resolve(root, 'public/robots.txt'), 'utf8');
+    expect(robots).toMatch(/User-agent:\s*\*/i);
+    expect(robots).toMatch(/Allow:\s*\//i);
+    expect(robots.includes('<!DOCTYPE html>')).toBe(false);
+  });
+
   it('ships a service worker that actually handles fetch', () => {
     const source = readFileSync(resolve(root, 'public/sw.js'), 'utf8');
     expect(source).toContain("addEventListener('fetch'");

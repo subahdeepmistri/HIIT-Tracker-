@@ -53,10 +53,10 @@ export const radius = {
 } as const;
 
 export const type = {
-  display: 'BarlowCondensed_700Bold',
-  ui: 'Barlow_500Medium',
-  uiStrong: 'Barlow_600SemiBold',
-  uiBook: 'Barlow_400Regular',
+  display: 'BarlowCondensed_700Bold, "Arial Narrow", Impact, sans-serif',
+  ui: 'Barlow_500Medium, system-ui, sans-serif',
+  uiStrong: 'Barlow_600SemiBold, system-ui, sans-serif',
+  uiBook: 'Barlow_400Regular, system-ui, sans-serif',
 } as const;
 
 export const motion = {

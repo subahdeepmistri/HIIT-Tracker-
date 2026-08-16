@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeepAwake } from 'expo-keep-awake';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 
 import { WorkoutController } from '../../application/workoutController';
 import { DEFAULTS } from '../../config/defaults';
@@ -69,15 +69,21 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
     () => ({
       db,
       revision,
-      ready: ready && fontsReady,
+      ready,
       controller,
       settings,
       refresh: () => setRevision((value) => value + 1),
     }),
-    [revision, ready, fontsReady, controller, settings],
+    [revision, ready, controller, settings],
   );
 
-  if (!value.ready) return null;
+  useLayoutEffect(() => {
+    if (ready && typeof document !== 'undefined') {
+      document.getElementById('hiit-boot')?.remove();
+    }
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <VoltContext.Provider value={value}>

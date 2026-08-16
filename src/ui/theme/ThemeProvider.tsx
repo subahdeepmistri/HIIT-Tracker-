@@ -1,5 +1,7 @@
-import { Barlow_400Regular, Barlow_500Medium, Barlow_600SemiBold } from '@expo-google-fonts/barlow';
-import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
+import { Barlow_400Regular } from '@expo-google-fonts/barlow/400Regular';
+import { Barlow_500Medium } from '@expo-google-fonts/barlow/500Medium';
+import { Barlow_600SemiBold } from '@expo-google-fonts/barlow/600SemiBold';
+import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed/700Bold';
 import { useFonts } from 'expo-font';
 import React, { createContext, useContext, useMemo } from 'react';
 import { useColorScheme as useSystemScheme } from 'react-native';

@@ -22,6 +22,12 @@
     Service-Worker-Allowed = "/"
     Cache-Control = "no-cache"
 
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "no-cache"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

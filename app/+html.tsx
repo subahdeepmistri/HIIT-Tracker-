@@ -12,6 +12,11 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <title>HIIT Tracker</title>
+        <meta
+          name="description"
+          content="Offline-first HIIT trainer. Plan work and rest, record what you actually did, and track progress without invented calories or heart rate."
+        />
         <meta name="theme-color" content="#07080A" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -31,19 +36,57 @@ export default function Root({ children }: { children: ReactNode }) {
 
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
-        {/* Add any additional <head> elements that you want globally available on web... */}
       </head>
-      <body>{children}</body>
+      <body>
+        <div id="hiit-boot" aria-hidden="true">
+          <div className="hiit-boot-label">HIIT Tracker</div>
+          <h1>
+            Train.
+            <br />
+            Track.
+            <br />
+            <span>Improve.</span>
+          </h1>
+        </div>
+        {children}
+      </body>
     </html>
   );
 }
 
 const responsiveBackground = `
-body {
+html, body {
   background-color: #07080A;
+  margin: 0;
 }
+#hiit-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 72px 20px 140px;
+  box-sizing: border-box;
+  background: #07080A;
+  color: #F4F1EA;
+  font-family: "Arial Narrow", Impact, system-ui, sans-serif;
+}
+#hiit-boot .hiit-boot-label {
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #9AA3B2;
+}
+#hiit-boot h1 {
+  margin: 12px 0 0;
+  font-size: 56px;
+  line-height: 56px;
+  letter-spacing: -0.6px;
+  font-weight: 700;
+}
+#hiit-boot span { color: #E8FF3D; }
 @media (prefers-color-scheme: light) {
-  body {
-    background-color: #F6F4EE;
-  }
+  html, body, #hiit-boot { background-color: #F6F4EE; }
+  #hiit-boot { color: #12141A; }
 }`;

@@ -2,7 +2,7 @@
   "id": "/",
   "name": "HIIT Tracker",
   "short_name": "HIIT",
-  "description": "Train. Track. Improve.",
+  "description": "Offline-first HIIT trainer. Plan work and rest, record what you actually did, and track progress without invented calories or heart rate.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

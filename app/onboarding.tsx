@@ -99,8 +99,8 @@ export default function OnboardingScreen() {
           gap: 16,
         }}
         keyboardShouldPersistTaps="handled">
-        <Animated.View key={step} entering={fade} style={{ flex: 1, gap: 16 }}>
-          {step === 0 ? <Welcome enter={enter} /> : null}
+        <Animated.View key={step} entering={step === 0 ? undefined : fade} style={{ flex: 1, gap: 16 }}>
+          {step === 0 ? <Welcome /> : null}
           {step === 1 ? <HowItWorks enter={enter} /> : null}
           {step === 2 ? <TrainingPreferences enter={enter} /> : null}
           {step === 3 ? <DefaultPreview enter={enter} durationSeconds={estimatedDuration} /> : null}
@@ -136,23 +136,21 @@ export default function OnboardingScreen() {
   );
 }
 
-function Welcome({ enter }: { enter?: Entering }) {
+function Welcome() {
   const theme = useTheme();
   return (
     <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 12, gap: 22 }}>
-      <Animated.View entering={enter}>
+      <View>
         <Label>HIIT Tracker</Label>
         <Heading style={{ fontSize: 56, lineHeight: 56, marginTop: 12 }}>
           Train.{'\n'}Track.{'\n'}
           <Text style={{ color: theme.color.accent }}>Improve.</Text>
         </Heading>
-      </Animated.View>
+      </View>
       <View style={{ width: 48, height: 3, borderRadius: 99, backgroundColor: theme.color.accent }} />
-      <Animated.View entering={enter}>
-        <Body style={{ color: theme.color.muted, fontSize: 18, lineHeight: 28 }}>
-          Your training.{'\n'}Your data.{'\n'}Your progress.
-        </Body>
-      </Animated.View>
+      <Body style={{ color: theme.color.muted, fontSize: 18, lineHeight: 28 }}>
+        Your training.{'\n'}Your data.{'\n'}Your progress.
+      </Body>
     </View>
   );
 }

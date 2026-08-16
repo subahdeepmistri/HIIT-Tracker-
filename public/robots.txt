@@ -1,0 +1,5 @@
+# HIIT Tracker — allow all crawlers. This file must be real text,
+# not the SPA HTML fallback.
+User-agent: *
+Allow: /
+
