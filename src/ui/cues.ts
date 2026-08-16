@@ -47,14 +47,27 @@ async function beep(kind: CueKind): Promise<void> {
   await nativeBeep(kind);
 }
 
-function webBeep(kind: CueKind): void {
+let sharedWebContext: AudioContext | null = null;
+
+function webAudioContext(): AudioContext | null {
   const audioWindow = globalThis as typeof globalThis & {
     AudioContext?: typeof AudioContext;
     webkitAudioContext?: typeof AudioContext;
   };
   const Ctor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
-  if (!Ctor) return;
-  const ctx = new Ctor();
+  if (!Ctor) return null;
+  if (!sharedWebContext || sharedWebContext.state === 'closed') {
+    sharedWebContext = new Ctor();
+  }
+  if (sharedWebContext.state === 'suspended') {
+    void sharedWebContext.resume();
+  }
+  return sharedWebContext;
+}
+
+function webBeep(kind: CueKind): void {
+  const ctx = webAudioContext();
+  if (!ctx) return;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.frequency.value = frequencyFor(kind);
@@ -65,7 +78,8 @@ function webBeep(kind: CueKind): void {
   osc.start();
   osc.stop(ctx.currentTime + 0.12);
   osc.onended = () => {
-    void ctx.close();
+    osc.disconnect();
+    gain.disconnect();
   };
 }
 

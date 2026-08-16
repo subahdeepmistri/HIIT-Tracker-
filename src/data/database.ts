@@ -126,11 +126,11 @@ export class VoltDatabase {
     list: () => [...this.snapshot.sessions].sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt)),
     get: (id: SessionId) => this.snapshot.sessions.find((row) => row.id === id),
     inProgress: () => this.snapshot.sessions.find((row) => row.status === 'IN_PROGRESS'),
-    upsert: async (session: WorkoutSession) => {
+    upsert: async (session: WorkoutSession, options?: { notify?: boolean }) => {
       const index = this.snapshot.sessions.findIndex((row) => row.id === session.id);
       if (index >= 0) this.snapshot.sessions[index] = session;
       else this.snapshot.sessions.push(session);
-      await this.save();
+      await this.save(options);
     },
     remove: async (id: SessionId) => {
       this.snapshot.sessions = this.snapshot.sessions.filter((row) => row.id !== id);
@@ -143,9 +143,9 @@ export class VoltDatabase {
       this.snapshot.intervals
         .filter((row) => row.sessionId === id)
         .sort((a, b) => a.startedAt - b.startedAt),
-    replaceSession: async (id: SessionId, rows: IntervalSession[]) => {
+    replaceSession: async (id: SessionId, rows: IntervalSession[], options?: { notify?: boolean }) => {
       this.snapshot.intervals = [...this.snapshot.intervals.filter((row) => row.sessionId !== id), ...rows];
-      await this.save();
+      await this.save(options);
     },
     removeBySession: async (id: SessionId) => {
       this.snapshot.intervals = this.snapshot.intervals.filter((row) => row.sessionId !== id);
@@ -255,9 +255,15 @@ export class VoltDatabase {
     this.ready = true;
   }
 
-  async save(): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.snapshot));
-    this.listeners.forEach((listener) => listener());
+  async save(options?: { notify?: boolean }): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.snapshot));
+    } catch {
+      // Quota / private mode must never freeze a live workout.
+    }
+    if (options?.notify !== false) {
+      this.listeners.forEach((listener) => listener());
+    }
   }
 
   async deleteWorkoutData(): Promise<void> {

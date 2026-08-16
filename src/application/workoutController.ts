@@ -1,4 +1,4 @@
-import { createId, type IntervalId, type SessionId } from '../domain/ids';
+import { createId, type IntervalId, type SessionId, type WorkoutId } from '../domain/ids';
 import type {
   IntervalSession,
   PerformanceRecord,
@@ -43,7 +43,9 @@ export interface ControllerDeps {
 export class WorkoutController {
   private state: EngineState = createIdleState();
   private readonly clock: Clock;
-  private tickLock = false;
+  private finalizing = false;
+  private persistQueued = false;
+  private persistInFlight = false;
   private lastPersistedJson: string | null = null;
 
   constructor(private readonly deps: ControllerDeps) {
@@ -68,7 +70,7 @@ export class WorkoutController {
     try {
       this.state = deserializeEngine(json);
       this.state = tick(this.state, this.clock.now());
-      await this.persist();
+      this.schedulePersist();
       return this.state;
     } catch {
       return null;
@@ -103,79 +105,66 @@ export class WorkoutController {
       resumePayloadJson: serializeEngine(this.state),
     };
     await this.deps.db.sessions.upsert(session);
-    await this.persist();
+    this.schedulePersist();
     return this.state;
   }
 
   async tick(): Promise<{ state: EngineState; finalized?: FinalizeResult }> {
-    if (this.tickLock) return { state: this.state };
-    this.tickLock = true;
-    try {
-      const wasLive = this.state.status === 'LIVE';
-      const before = this.state.intervals.length;
-      const previousStatus = this.state.status;
-      this.state = tick(this.state, this.clock.now());
-      const phaseChanged = this.state.intervals.length !== before || this.state.status !== previousStatus;
-      if (this.state.intervals.length !== before) {
-        await this.flushIntervals();
-      }
-      if (phaseChanged) {
-        await this.persist();
-      }
-      if (wasLive && this.state.status === 'COMPLETED') {
-        const finalized = await this.finalize('COMPLETED');
-        return { state: this.state, finalized };
-      }
-      return { state: this.state };
-    } finally {
-      this.tickLock = false;
+    const wasLive = this.state.status === 'LIVE';
+    this.state = tick(this.state, this.clock.now());
+    if (wasLive && this.state.status === 'COMPLETED' && !this.finalizing) {
+      return { state: this.state, finalized: await this.finalizeOnce('COMPLETED') };
     }
+    this.schedulePersist();
+    return { state: this.state };
   }
 
   async checkpoint(): Promise<void> {
-    await this.persist(true);
+    this.schedulePersist();
   }
 
   async pause(): Promise<EngineState> {
     this.state = pause(this.state, this.clock.now());
-    await this.persist();
+    this.schedulePersist();
     return this.state;
   }
 
   async resume(): Promise<EngineState> {
     this.state = resume(this.state, this.clock.now());
-    await this.persist();
+    this.schedulePersist();
     return this.state;
   }
 
   async skip(): Promise<EngineState> {
     this.state = skip(this.state, this.clock.now());
-    await this.flushIntervals();
-    await this.persist();
-    if (this.state.status === 'COMPLETED') await this.finalize('COMPLETED');
+    if (this.state.status === 'COMPLETED') {
+      if (!this.finalizing) await this.finalizeOnce('COMPLETED');
+      return this.state;
+    }
+    this.schedulePersist();
     return this.state;
   }
 
   async recordReps(reps: number): Promise<EngineState> {
     this.state = recordReps(this.state, reps);
-    await this.persist();
+    this.schedulePersist();
     return this.state;
   }
 
   async recordDistance(distance: number): Promise<EngineState> {
     this.state = recordDistance(this.state, distance);
-    await this.persist();
+    this.schedulePersist();
     return this.state;
   }
 
   async complete(): Promise<FinalizeResult> {
     this.state = completeNow(this.state, this.clock.now());
-    return this.finalize('COMPLETED');
+    return this.finalizeOnce('COMPLETED');
   }
 
   async savePartial(): Promise<FinalizeResult> {
     this.state = savePartial(this.state, this.clock.now());
-    return this.finalize('PARTIAL');
+    return this.finalizeOnce('PARTIAL');
   }
 
   async discard(sessionId?: SessionId): Promise<void> {
@@ -189,35 +178,75 @@ export class WorkoutController {
     await this.deps.persistLive?.(null);
   }
 
-  private async persist(force = false): Promise<void> {
-    if (!this.state.sessionId || this.state.status === 'IDLE') {
-      if (this.lastPersistedJson !== null || force) {
-        this.lastPersistedJson = null;
-        await this.deps.persistLive?.(null);
+  private schedulePersist(): void {
+    this.persistQueued = true;
+    void this.flushPersistQueue();
+  }
+
+  private async flushPersistQueue(): Promise<void> {
+    if (this.persistInFlight) return;
+    this.persistInFlight = true;
+    try {
+      while (this.persistQueued) {
+        this.persistQueued = false;
+        await this.persistLiveOnly();
       }
-      return;
-    }
-    const json = serializeEngine(this.state);
-    if (!force && json === this.lastPersistedJson) return;
-    this.lastPersistedJson = json;
-    await this.deps.persistLive?.(json);
-    const existing = this.deps.db.sessions.get(this.state.sessionId as SessionId);
-    if (existing) {
-      await this.deps.db.sessions.upsert({
-        ...existing,
-        interruptedAt: this.state.status === 'LIVE' || this.state.status === 'PAUSED' ? this.clock.now() : existing.interruptedAt,
-        resumePayloadJson: json,
-        status:
-          this.state.status === 'CANCELLED'
-            ? 'CANCELLED'
-            : this.state.status === 'COMPLETED'
-              ? existing.status
-              : 'IN_PROGRESS',
-      });
+    } finally {
+      this.persistInFlight = false;
     }
   }
 
-  private async flushIntervals(): Promise<void> {
+  private async persistLiveOnly(): Promise<void> {
+    try {
+      if (!this.state.sessionId || this.state.status === 'IDLE') {
+        if (this.lastPersistedJson !== null) {
+          this.lastPersistedJson = null;
+          await this.deps.persistLive?.(null);
+        }
+        return;
+      }
+      const json = serializeEngine(this.state);
+      if (json === this.lastPersistedJson) return;
+      this.lastPersistedJson = json;
+      await this.deps.persistLive?.(json);
+      await this.flushIntervals({ notify: false });
+      const sessionId = this.state.sessionId as SessionId;
+      const existing = this.deps.db.sessions.get(sessionId);
+      await this.deps.db.sessions.upsert(
+        {
+          ...(existing ?? this.sessionFromEngine('IN_PROGRESS')),
+          interruptedAt:
+            this.state.status === 'LIVE' || this.state.status === 'PAUSED'
+              ? this.clock.now()
+              : existing?.interruptedAt,
+          resumePayloadJson: json,
+          status:
+            this.state.status === 'CANCELLED'
+              ? 'CANCELLED'
+              : this.state.status === 'COMPLETED'
+                ? (existing?.status ?? 'IN_PROGRESS')
+                : 'IN_PROGRESS',
+        },
+        { notify: false },
+      );
+    } catch {
+      // Persistence must never stop the timestamp clock.
+    }
+  }
+
+  private async finalizeOnce(status: 'COMPLETED' | 'PARTIAL'): Promise<FinalizeResult> {
+    if (this.finalizing) {
+      throw new Error('Session finalize already in progress');
+    }
+    this.finalizing = true;
+    try {
+      return await this.finalize(status);
+    } finally {
+      this.finalizing = false;
+    }
+  }
+
+  private async flushIntervals(options?: { notify?: boolean }): Promise<void> {
     const sessionId = this.state.sessionId as SessionId;
     if (!sessionId) return;
     const rows: IntervalSession[] = this.state.intervals.map((draft) => ({
@@ -239,32 +268,47 @@ export class WorkoutController {
       endedAt: draft.endedAt,
       outcome: draft.outcome,
     }));
-    await this.deps.db.intervals.replaceSession(sessionId, rows);
+    await this.deps.db.intervals.replaceSession(sessionId, rows, options);
+  }
+
+  private sessionFromEngine(status: WorkoutSession['status'], endedAt?: number): WorkoutSession {
+    return {
+      id: this.state.sessionId as SessionId,
+      workoutId: this.state.workoutId as WorkoutId,
+      workoutNameSnapshot: this.state.workoutName || 'Workout',
+      status,
+      startedAt: this.state.startedAt ?? this.clock.now(),
+      endedAt,
+      countdownSecondsUsed: this.state.countdownSeconds,
+      plannedRounds: this.state.plannedRounds,
+      plannedExerciseCount: this.state.plannedExerciseCount,
+      averageHeartRate: null,
+      maximumHeartRate: null,
+      heartRateSamplesJson: null,
+      resumePayloadJson: status === 'IN_PROGRESS' ? serializeEngine(this.state) : undefined,
+    };
   }
 
   private async finalize(status: 'COMPLETED' | 'PARTIAL'): Promise<FinalizeResult> {
     await this.flushIntervals();
-    const sessionId = this.state.sessionId as SessionId;
-    const existing = this.deps.db.sessions.get(sessionId);
-    if (!existing) {
-      this.state = createIdleState();
-      await this.deps.persistLive?.(null);
-      throw new Error('Session missing');
-    }
+    const existing = this.state.sessionId
+      ? this.deps.db.sessions.get(this.state.sessionId as SessionId)
+      : undefined;
     const endedAt = this.state.endedAt ?? this.clock.now();
     const session: WorkoutSession = {
-      ...existing,
+      ...(existing ?? this.sessionFromEngine('IN_PROGRESS')),
+      id: (existing?.id || this.state.sessionId || createId()) as SessionId,
       status,
       endedAt,
       interruptedAt: undefined,
       resumePayloadJson: undefined,
     };
-    const intervals = this.deps.db.intervals.listBySession(sessionId);
+    const intervals = this.deps.db.intervals.listBySession(session.id);
     const metrics = calculateSessionMetrics(session, intervals, endedAt);
     const score = scoreFromMetrics(metrics, session.plannedRounds);
     const performance: PerformanceRecord = {
       id: createId(),
-      sessionId,
+      sessionId: session.id,
       workoutId: session.workoutId,
       createdAt: endedAt,
       totalDurationSeconds: isValue(metrics.totalDurationSeconds) ? metrics.totalDurationSeconds.value : 0,

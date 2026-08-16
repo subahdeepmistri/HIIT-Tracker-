@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Pressable, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DEFAULTS } from '@/src/config/defaults';
@@ -11,8 +11,20 @@ import { ExerciseDemo } from '@/src/features/live/ExerciseDemo';
 import { PhaseBadge } from '@/src/ui/components/PhaseBadge';
 import { ProgressTrack } from '@/src/ui/components/ProgressTrack';
 import { playCue } from '@/src/ui/cues';
+import { confirmAction } from '@/src/ui/confirm';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import type { LiveView } from '@/src/engine/workout/stateMachine';
+
+function viewKey(view: LiveView): string {
+  return [
+    view.phase,
+    Math.ceil(view.remainingMs / 1000),
+    view.slotIndex,
+    view.currentReps,
+    view.currentDistance,
+    Math.round(view.workoutProgress * 100),
+  ].join('|');
+}
 
 export default function LiveWorkoutScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
@@ -22,23 +34,46 @@ export default function LiveWorkoutScreen() {
   const [view, setView] = useState<LiveView>(controller.getView());
   const lastPhase = useRef(view.phase);
   const lastSecond = useRef(-1);
+  const lastKey = useRef(viewKey(view));
+  const finishing = useRef(false);
+
+  const paint = useCallback(
+    (next: LiveView) => {
+      const key = viewKey(next);
+      if (key === lastKey.current) return;
+      lastKey.current = key;
+      setView(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     let mounted = true;
+    let pulsing = false;
+
     const pulse = async () => {
-      if (!controller.getState().sessionId) {
-        const hydrated = await controller.hydrateFromStorage();
-        if (!hydrated) return;
-      }
-      const result = await controller.tick();
-      if (!mounted) return;
-      const next = controller.getView();
-      setView(next);
-      if (result.finalized) {
-        router.replace(`/summary/${result.finalized.session.id}`);
+      if (!mounted || pulsing || finishing.current) return;
+      pulsing = true;
+      try {
+        if (!controller.getState().sessionId) {
+          const hydrated = await controller.hydrateFromStorage();
+          if (!hydrated || !mounted) return;
+        }
+        const result = await controller.tick();
+        if (!mounted) return;
+        paint(controller.getView());
+        if (result.finalized && !finishing.current) {
+          finishing.current = true;
+          router.replace(`/summary/${result.finalized.session.id}`);
+        }
+      } catch {
+        if (mounted) paint(controller.getView());
+      } finally {
+        pulsing = false;
       }
     };
 
+    void pulse();
     const interval = setInterval(() => {
       void pulse();
     }, DEFAULTS.liveTickMs);
@@ -55,7 +90,7 @@ export default function LiveWorkoutScreen() {
       clearInterval(interval);
       appState.remove();
     };
-  }, [controller, router]);
+  }, [controller, paint, router]);
 
   useEffect(() => {
     if (view.phase !== lastPhase.current) {
@@ -74,6 +109,12 @@ export default function LiveWorkoutScreen() {
       lastSecond.current = seconds;
     }
   }, [view, settings]);
+
+  const apply = (action: () => void | Promise<unknown>) => {
+    void Promise.resolve(action()).finally(() => {
+      paint(controller.getView());
+    });
+  };
 
   const isRest = view.phase === 'REST' || view.phase === 'TRANSITION';
   const background =
@@ -179,26 +220,28 @@ export default function LiveWorkoutScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <LiveButton
                 label="−"
-                onPress={() => void controller.recordReps(Math.max(0, view.currentReps - 1))}
+                onPress={() => apply(() => controller.recordReps(Math.max(0, view.currentReps - 1)))}
               />
               <Text style={{ fontFamily: theme.type.display, color: theme.color.text, fontSize: 48 }}>
                 {view.currentReps}
               </Text>
-              <LiveButton label="+" onPress={() => void controller.recordReps(view.currentReps + 1)} />
+              <LiveButton label="+" onPress={() => apply(() => controller.recordReps(view.currentReps + 1))} />
             </View>
           ) : null}
           {showDistance ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <LiveButton
                 label="−"
-                onPress={() => void controller.recordDistance(Math.max(0, Number((view.currentDistance - 0.1).toFixed(2))))}
+                onPress={() =>
+                  apply(() => controller.recordDistance(Math.max(0, Number((view.currentDistance - 0.1).toFixed(2)))))
+                }
               />
               <Text style={{ fontFamily: theme.type.display, color: theme.color.text, fontSize: 36 }}>
                 {view.currentDistance.toFixed(1)}
               </Text>
               <LiveButton
                 label="+"
-                onPress={() => void controller.recordDistance(Number((view.currentDistance + 0.1).toFixed(2)))}
+                onPress={() => apply(() => controller.recordDistance(Number((view.currentDistance + 0.1).toFixed(2))))}
               />
             </View>
           ) : null}
@@ -207,24 +250,30 @@ export default function LiveWorkoutScreen() {
             <LiveButton
               label={view.phase === 'PAUSED' ? 'Resume' : 'Pause'}
               flex
-              onPress={() => void (view.phase === 'PAUSED' ? controller.resume() : controller.pause())}
+              onPress={() => apply(() => (view.phase === 'PAUSED' ? controller.resume() : controller.pause()))}
             />
-            <LiveButton label="Skip" flex onPress={() => void controller.skip()} />
+            <LiveButton label="Skip" flex onPress={() => apply(() => controller.skip())} />
           </View>
           <LiveButton
             label="Finish"
-            onPress={() => {
-              Alert.alert('Finish workout?', 'This saves a partial session with everything recorded so far.', [
-                { text: 'Keep going', style: 'cancel' },
-                {
-                  text: 'Finish',
-                  onPress: async () => {
-                    const result = await controller.savePartial();
-                    router.replace(`/summary/${result.session.id}`);
-                  },
-                },
-              ]);
-            }}
+            onPress={() =>
+              apply(async () => {
+                const ok = await confirmAction(
+                  'Finish workout?',
+                  'This saves a partial session with everything recorded so far.',
+                  'Finish',
+                );
+                if (!ok) return;
+                finishing.current = true;
+                try {
+                  const result = await controller.savePartial();
+                  router.replace(`/summary/${result.session.id}`);
+                } catch {
+                  finishing.current = false;
+                  paint(controller.getView());
+                }
+              })
+            }
           />
         </View>
       </View>
@@ -232,7 +281,7 @@ export default function LiveWorkoutScreen() {
   );
 }
 
-function LiveButton({
+const LiveButton = React.memo(function LiveButton({
   label,
   onPress,
   flex,
@@ -261,4 +310,4 @@ function LiveButton({
       <Text style={{ fontFamily: theme.type.uiStrong, color: theme.color.text, fontSize: 18 }}>{label}</Text>
     </Pressable>
   );
-}
+});
