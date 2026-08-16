@@ -71,6 +71,26 @@ describe('live runtime isolation', () => {
     expect(result.session.id).toBeTruthy();
     expect(db.sessions.list()).toHaveLength(1);
   });
+
+  it('discards a wrongly started session so it is not saved to history', async () => {
+    const clock = new FrozenClock(0);
+    const db = memoryDatabase();
+    const live = { json: 'occupied' };
+    const controller = new WorkoutController({
+      db: db as never,
+      clock,
+      persistLive: async (json) => {
+        live.json = json ?? '';
+      },
+    });
+
+    await controller.start(tinyPlan(), 3, true);
+    expect(db.sessions.list()).toHaveLength(1);
+    await controller.discard();
+    expect(db.sessions.list()).toHaveLength(0);
+    expect(controller.getView().phase).toBe('IDLE');
+    expect(live.json).toBe('');
+  });
 });
 
 function tinyPlan(): WorkoutPlan {

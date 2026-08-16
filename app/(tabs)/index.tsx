@@ -1,11 +1,13 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { weekStats, greeting } from '@/src/engine/analytics/dashboard';
 import { planWorkout } from '@/src/engine/workout/planner';
 import { useVolt } from '@/src/features/app/VoltProvider';
+import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
+import { SessionListRow } from '@/src/features/history/SessionListRow';
 import { Body, Button, Card, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import { Units } from '@/src/domain/units';
@@ -156,25 +158,21 @@ export default function HomeScreen() {
                 .map((session) => {
                   const record = db.performance.getBySession(session.id);
                   return (
-                    <Pressable
+                    <SessionListRow
                       key={session.id}
-                      onPress={() => router.push(`/history/${session.id}`)}
-                      style={{
-                        backgroundColor: theme.color.surface,
-                        borderRadius: 16,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: theme.color.line,
-                      }}>
-                      <Strong>{session.workoutNameSnapshot}</Strong>
-                      <Body style={{ color: theme.color.muted, marginTop: 4 }}>
-                        {new Date(session.endedAt ?? session.startedAt).toLocaleDateString()}
-                        {record ? ` · ${Units.formatCompactDuration(record.totalDurationSeconds)}` : ''}
-                        {record?.workCompletionPercent != null
-                          ? ` · ${Units.formatPercent(record.workCompletionPercent)}`
-                          : ''}
-                      </Body>
-                    </Pressable>
+                      title={session.workoutNameSnapshot}
+                      subtitle={[
+                        new Date(session.endedAt ?? session.startedAt).toLocaleDateString(),
+                        record ? Units.formatCompactDuration(record.totalDurationSeconds) : null,
+                        record?.workCompletionPercent != null
+                          ? Units.formatPercent(record.workCompletionPercent)
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                      onOpen={() => router.push(`/history/${session.id}`)}
+                      onDelete={() => void confirmAndDeleteSession(db, session.id)}
+                    />
                   );
                 })}
             </View>

@@ -3,9 +3,16 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 
 import { VoltRoot, useVolt } from '@/src/features/app/VoltProvider';
+import { installSafeBack } from '@/src/ui/safeBack';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export { ErrorBoundary } from 'expo-router';
+
+installSafeBack();
+
+export const unstable_settings = {
+  initialRouteName: '(tabs)',
+};
 
 export default function RootLayout() {
   return (

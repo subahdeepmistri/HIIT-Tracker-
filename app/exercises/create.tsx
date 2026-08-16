@@ -7,6 +7,7 @@ import { createId } from '@/src/domain/ids';
 import type { ExerciseCategory, TrackingMode } from '@/src/domain/types';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Button, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 const CATEGORIES: ExerciseCategory[] = [
@@ -85,10 +86,10 @@ export default function CreateExerciseScreen() {
               createdAt: now,
               updatedAt: now,
             });
-            router.back();
+            goBackOr(router, '/exercises');
           }}
         />
-        <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
+        <Button label="Cancel" variant="ghost" onPress={() => goBackOr(router, '/exercises')} />
       </ScrollView>
     </SafeAreaView>
   );

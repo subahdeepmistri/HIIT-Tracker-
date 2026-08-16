@@ -1,13 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Units } from '@/src/domain/units';
 import { planWorkout } from '@/src/engine/workout/planner';
-import { exerciseTrackingLine } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
-import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { PreWorkoutView } from '@/src/features/workouts/PreWorkoutView';
+import { Button, Heading } from '@/src/ui/components/primitives';
+import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function WorkoutDetailScreen() {
@@ -20,7 +20,7 @@ export default function WorkoutDetailScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg, padding: 20 }}>
         <Heading>Workout missing</Heading>
-        <Button label="Back" variant="ghost" onPress={() => router.back()} />
+        <Button label="Back" variant="ghost" onPress={() => goBackOr(router, '/workouts')} />
       </SafeAreaView>
     );
   }
@@ -32,60 +32,25 @@ export default function WorkoutDetailScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
-        <Label>Pre-workout</Label>
-        <Heading>{plan.workout.name}</Heading>
-        {plan.workout.notes ? <Body>{plan.workout.notes}</Body> : null}
-        <Card>
-          <Body style={{ color: theme.color.muted, fontSize: 13, marginBottom: 12 }}>
-            Training duration includes work and rest between intervals. Countdown is preparation time and is not included.
-          </Body>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-            <Fact label="Exercises" value={String(planned.exerciseCount)} />
-            <Fact label="Rounds" value={String(planned.rounds)} />
-            <Fact label="Duration" value={Units.formatCompactDuration(planned.plannedDurationSeconds)} />
-            <Fact label="Work" value={Units.formatCompactDuration(planned.plannedWorkSeconds)} />
-            <Fact label="Rest" value={Units.formatCompactDuration(planned.plannedRestSeconds)} />
-            <Fact label="Countdown" value={`${settings.countdownSeconds}s`} />
-          </View>
-        </Card>
-        <Card>
-          <Label>Exercises</Label>
-          <View style={{ marginTop: 12, gap: 12 }}>
-            {plan.exercises.map((item, index) => (
-              <View key={item.id}>
-                <Strong>
-                  {index + 1}. {item.exercise.name.toUpperCase()}
-                </Strong>
-                <Body style={{ color: theme.color.muted }}>{exerciseTrackingLine(item)}</Body>
-              </View>
-            ))}
-          </View>
-        </Card>
-        <Button
-          label="Start workout"
-          large
-          onPress={async () => {
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
+        <PreWorkoutView
+          name={plan.workout.name}
+          notes={plan.workout.notes}
+          exerciseCount={planned.exerciseCount}
+          rounds={planned.rounds}
+          durationSeconds={planned.plannedDurationSeconds}
+          workSeconds={planned.plannedWorkSeconds}
+          restSeconds={planned.plannedRestSeconds}
+          countdownSeconds={settings.countdownSeconds}
+          items={plan.exercises}
+          onStart={async () => {
             const state = await controller.start(plan, settings.countdownSeconds, settings.reducedMotion);
             router.replace(`/live/${state.sessionId}`);
           }}
+          onEdit={() => router.push({ pathname: '/workouts/builder', params: { id: plan.workout.id } })}
+          onBack={() => goBackOr(router, '/workouts')}
         />
-        <Button
-          label="Edit"
-          variant="ghost"
-          onPress={() => router.push({ pathname: '/workouts/builder', params: { id: plan.workout.id } })}
-        />
-        <Button label="Back" variant="ghost" onPress={() => router.back()} />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={{ minWidth: 90 }}>
-      <Label>{label}</Label>
-      <Strong style={{ marginTop: 4 }}>{value}</Strong>
-    </View>
   );
 }

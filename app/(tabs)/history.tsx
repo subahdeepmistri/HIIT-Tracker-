@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Units } from '@/src/domain/units';
 import { useVolt } from '@/src/features/app/VoltProvider';
-import { Body, Button, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
+import { SessionListRow } from '@/src/features/history/SessionListRow';
+import { Button, EmptyState, Heading } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function HistoryScreen() {
@@ -32,24 +34,20 @@ export default function HistoryScreen() {
           sessions.map((session) => {
             const record = db.performance.getBySession(session.id);
             return (
-              <Pressable
+              <SessionListRow
                 key={session.id}
-                onPress={() => router.push(`/history/${session.id}`)}
-                style={{
-                  backgroundColor: theme.color.surface,
-                  borderRadius: 16,
-                  padding: 16,
-                  borderWidth: 1,
-                  borderColor: theme.color.line,
-                }}>
-                <Label>{session.status === 'PARTIAL' ? 'Partial' : 'Completed'}</Label>
-                <Strong style={{ marginTop: 4 }}>{session.workoutNameSnapshot}</Strong>
-                <Body style={{ color: theme.color.muted, marginTop: 4 }}>
-                  {new Date(session.endedAt ?? session.startedAt).toLocaleString()}
-                  {record ? ` · ${Units.formatCompactDuration(record.totalDurationSeconds)}` : ''}
-                  {record?.workCompletionPercent != null ? ` · ${Units.formatPercent(record.workCompletionPercent)}` : ''}
-                </Body>
-              </Pressable>
+                badge={session.status === 'PARTIAL' ? 'Partial' : 'Completed'}
+                title={session.workoutNameSnapshot}
+                subtitle={[
+                  new Date(session.endedAt ?? session.startedAt).toLocaleString(),
+                  record ? Units.formatCompactDuration(record.totalDurationSeconds) : null,
+                  record?.workCompletionPercent != null ? Units.formatPercent(record.workCompletionPercent) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                onOpen={() => router.push(`/history/${session.id}`)}
+                onDelete={() => void confirmAndDeleteSession(db, session.id)}
+              />
             );
           })
         )}

@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ExerciseCategory } from '@/src/domain/types';
-import { libraryTrackingLine } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
-import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { ExerciseCatalogCard } from '@/src/features/exercises/ExerciseCatalogCard';
+import { Body, Button, Heading } from '@/src/ui/components/primitives';
+import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 const CATEGORIES: Array<ExerciseCategory | 'All'> = [
@@ -31,8 +32,13 @@ export default function ExerciseLibraryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 40 }}>
-        <Heading>Exercises</Heading>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40, width: '100%' }}>
+        <View style={{ gap: 8, width: '100%' }}>
+          <Heading>Exercises</Heading>
+          <Body style={{ color: theme.color.muted, maxWidth: '100%' }}>
+            Form, timing, and safety for every movement.
+          </Body>
+        </View>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -48,6 +54,7 @@ export default function ExerciseLibraryScreen() {
             borderWidth: 1,
             borderColor: theme.color.line,
             fontFamily: theme.type.ui,
+            fontSize: 16,
           }}
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -64,18 +71,9 @@ export default function ExerciseLibraryScreen() {
         </ScrollView>
         <Button label="Create custom" variant="ghost" onPress={() => router.push('/exercises/create')} />
         {rows.map((exercise) => (
-          <Card key={exercise.id}>
-            <Label>
-              {exercise.category}
-              {exercise.isCustom ? ' · Custom' : ''}
-            </Label>
-            <Strong style={{ marginTop: 4 }}>{exercise.name.toUpperCase()}</Strong>
-            <Label style={{ marginTop: 6 }}>{libraryTrackingLine(exercise)}</Label>
-            <Body style={{ marginTop: 6 }}>{exercise.instructions}</Body>
-            <Body style={{ marginTop: 6, color: theme.color.muted }}>{exercise.safetyNotes}</Body>
-          </Card>
+          <ExerciseCatalogCard key={exercise.id} exercise={exercise} />
         ))}
-        <Button label="Back" variant="ghost" onPress={() => router.back()} />
+        <Button label="Workouts" variant="ghost" onPress={() => goBackOr(router, '/workouts')} />
       </ScrollView>
     </SafeAreaView>
   );

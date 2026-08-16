@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DEFAULTS } from '@/src/config/defaults';
@@ -30,7 +30,7 @@ export default function LiveWorkoutScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const theme = useTheme();
   const router = useRouter();
-  const { controller, settings } = useVolt();
+  const { controller, settings, db } = useVolt();
   const [view, setView] = useState<LiveView>(controller.getView());
   const lastPhase = useRef(view.phase);
   const lastSecond = useRef(-1);
@@ -116,6 +116,30 @@ export default function LiveWorkoutScreen() {
     });
   };
 
+  const discardSession = () =>
+    apply(async () => {
+      const wasPaused = view.phase === 'PAUSED';
+      if (!wasPaused) await controller.pause();
+      const ok = await confirmAction(
+        'Discard this session?',
+        'This run will be deleted from this device. The workout plan stays. History will not keep this session.',
+        'Yes, discard',
+        { cancelLabel: 'Cancel', tone: 'danger' },
+      );
+      if (!ok) {
+        if (!wasPaused) await controller.resume();
+        return;
+      }
+      finishing.current = true;
+      try {
+        await controller.discard(sessionId as never);
+        router.replace('/');
+      } catch {
+        finishing.current = false;
+        paint(controller.getView());
+      }
+    });
+
   const isRest = view.phase === 'REST' || view.phase === 'TRANSITION';
   const background =
     view.phase === 'WORK' ? theme.color.bg : isRest ? '#07131C' : view.phase === 'PAUSED' ? '#1A1408' : theme.color.bg;
@@ -126,9 +150,33 @@ export default function LiveWorkoutScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: background }}>
       <KeepAwakeWhile active={view.phase !== 'COMPLETED' && view.phase !== 'CANCELLED'} />
-      <View style={{ flex: 1, padding: 20, justifyContent: 'space-between' }}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, padding: 20, justifyContent: 'space-between', gap: 16 }}
+        keyboardShouldPersistTaps="handled">
         <View style={{ gap: 10 }}>
-          <PhaseBadge phase={view.phase} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <PhaseBadge phase={view.phase} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Discard session"
+              onPress={discardSession}
+              style={({ pressed }) => ({
+                minHeight: 44,
+                paddingHorizontal: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.7 : 1,
+              })}>
+              <Text
+                style={{
+                  fontFamily: theme.type.uiStrong,
+                  color: theme.color.danger,
+                  fontSize: 16,
+                }}>
+                Discard
+              </Text>
+            </Pressable>
+          </View>
           <Text
             accessibilityRole="header"
             style={{
@@ -163,6 +211,9 @@ export default function LiveWorkoutScreen() {
           <View style={{ marginTop: 8, alignItems: 'flex-start' }}>
             <ExerciseDemo
               exerciseId={demoIdForLiveView(view)}
+              movementType={
+                db.exercises.get((demoIdForLiveView(view) ?? '') as never)?.movementType
+              }
               caption={
                 view.phase === 'REST' || view.phase === 'TRANSITION'
                   ? `Next · ${view.nextExerciseName ?? 'exercise'}`
@@ -254,29 +305,33 @@ export default function LiveWorkoutScreen() {
             />
             <LiveButton label="Skip" flex onPress={() => apply(() => controller.skip())} />
           </View>
-          <LiveButton
-            label="Finish"
-            onPress={() =>
-              apply(async () => {
-                const ok = await confirmAction(
-                  'Finish workout?',
-                  'This saves a partial session with everything recorded so far.',
-                  'Finish',
-                );
-                if (!ok) return;
-                finishing.current = true;
-                try {
-                  const result = await controller.savePartial();
-                  router.replace(`/summary/${result.session.id}`);
-                } catch {
-                  finishing.current = false;
-                  paint(controller.getView());
-                }
-              })
-            }
-          />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <LiveButton
+              label="Finish"
+              flex
+              onPress={() =>
+                apply(async () => {
+                  const ok = await confirmAction(
+                    'Finish workout?',
+                    'This saves a partial session with everything recorded so far.',
+                    'Finish',
+                  );
+                  if (!ok) return;
+                  finishing.current = true;
+                  try {
+                    const result = await controller.savePartial();
+                    router.replace(`/summary/${result.session.id}`);
+                  } catch {
+                    finishing.current = false;
+                    paint(controller.getView());
+                  }
+                })
+              }
+            />
+            <LiveButton label="Discard" flex danger onPress={discardSession} />
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -285,10 +340,12 @@ const LiveButton = React.memo(function LiveButton({
   label,
   onPress,
   flex,
+  danger,
 }: {
   label: string;
   onPress: () => void;
   flex?: boolean;
+  danger?: boolean;
 }) {
   const theme = useTheme();
   return (
@@ -302,12 +359,19 @@ const LiveButton = React.memo(function LiveButton({
         borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: theme.color.surface,
+        backgroundColor: danger ? 'transparent' : theme.color.surface,
         borderWidth: 1,
-        borderColor: theme.color.line,
+        borderColor: danger ? theme.color.danger : theme.color.line,
         opacity: pressed ? 0.8 : 1,
       })}>
-      <Text style={{ fontFamily: theme.type.uiStrong, color: theme.color.text, fontSize: 18 }}>{label}</Text>
+      <Text
+        style={{
+          fontFamily: theme.type.uiStrong,
+          color: danger ? theme.color.danger : theme.color.text,
+          fontSize: 18,
+        }}>
+        {label}
+      </Text>
     </Pressable>
   );
 });

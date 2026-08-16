@@ -16,7 +16,7 @@ import {
   createIdleState,
   deserializeEngine,
   type EngineState,
-  finish,
+
   getLiveView,
   type LiveView,
   pause,
@@ -169,13 +169,21 @@ export class WorkoutController {
 
   async discard(sessionId?: SessionId): Promise<void> {
     const id = sessionId ?? (this.state.sessionId as SessionId | undefined);
-    this.state = finish(this.state, this.clock.now(), 'discard');
-    if (id) {
-      await this.deps.db.intervals.removeBySession(id);
-      await this.deps.db.sessions.remove(id);
-    }
     this.state = createIdleState();
+    this.persistQueued = false;
+    this.lastPersistedJson = null;
     await this.deps.persistLive?.(null);
+    while (this.persistInFlight) {
+      await Promise.resolve();
+    }
+    if (id) {
+      if (typeof this.deps.db.sessions.delete === 'function') {
+        await this.deps.db.sessions.delete(id);
+      } else {
+        await this.deps.db.intervals.removeBySession(id);
+        await this.deps.db.sessions.remove(id);
+      }
+    }
   }
 
   private schedulePersist(): void {
@@ -198,7 +206,8 @@ export class WorkoutController {
 
   private async persistLiveOnly(): Promise<void> {
     try {
-      if (!this.state.sessionId || this.state.status === 'IDLE') {
+      const liveId = this.state.sessionId;
+      if (!liveId || this.state.status === 'IDLE' || this.state.status === 'CANCELLED') {
         if (this.lastPersistedJson !== null) {
           this.lastPersistedJson = null;
           await this.deps.persistLive?.(null);
@@ -209,23 +218,20 @@ export class WorkoutController {
       if (json === this.lastPersistedJson) return;
       this.lastPersistedJson = json;
       await this.deps.persistLive?.(json);
+      if (!this.state.sessionId || this.state.sessionId !== liveId) {
+        return;
+      }
+      const status = this.state.status;
       await this.flushIntervals({ notify: false });
-      const sessionId = this.state.sessionId as SessionId;
+      const sessionId = liveId as SessionId;
       const existing = this.deps.db.sessions.get(sessionId);
       await this.deps.db.sessions.upsert(
         {
           ...(existing ?? this.sessionFromEngine('IN_PROGRESS')),
-          interruptedAt:
-            this.state.status === 'LIVE' || this.state.status === 'PAUSED'
-              ? this.clock.now()
-              : existing?.interruptedAt,
+          id: sessionId,
+          interruptedAt: status === 'LIVE' || status === 'PAUSED' ? this.clock.now() : existing?.interruptedAt,
           resumePayloadJson: json,
-          status:
-            this.state.status === 'CANCELLED'
-              ? 'CANCELLED'
-              : this.state.status === 'COMPLETED'
-                ? (existing?.status ?? 'IN_PROGRESS')
-                : 'IN_PROGRESS',
+          status: status === 'COMPLETED' ? (existing?.status ?? 'IN_PROGRESS') : 'IN_PROGRESS',
         },
         { notify: false },
       );

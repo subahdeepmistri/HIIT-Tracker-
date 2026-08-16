@@ -187,6 +187,25 @@ function trim(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+export function rebuildPersonalRecords(
+  sessions: WorkoutSession[],
+  intervals: IntervalSession[],
+): PersonalRecord[] {
+  const ordered = sessions
+    .filter((session) => session.status === 'COMPLETED' || session.status === 'PARTIAL')
+    .sort((a, b) => (a.endedAt ?? a.startedAt) - (b.endedAt ?? b.startedAt));
+  let records: PersonalRecord[] = [];
+  for (const session of ordered) {
+    const earned = detectPersonalRecords({
+      session,
+      intervals: intervals.filter((row) => row.sessionId === session.id),
+      existing: records,
+    });
+    records = applyPersonalRecords(records, earned);
+  }
+  return records;
+}
+
 export function applyPersonalRecords(
   existing: PersonalRecord[],
   earned: PersonalRecord[],

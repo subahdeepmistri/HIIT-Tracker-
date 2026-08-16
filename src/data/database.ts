@@ -18,6 +18,7 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from '../domain/types';
+import { applySessionDelete } from './deleteSession';
 import { applyMigrations } from './migrate';
 import { DB_VERSION, type VoltSnapshot } from './schema';
 import { CATALOG_EXERCISES } from './seed/exercises';
@@ -134,6 +135,10 @@ export class VoltDatabase {
     },
     remove: async (id: SessionId) => {
       this.snapshot.sessions = this.snapshot.sessions.filter((row) => row.id !== id);
+      await this.save();
+    },
+    delete: async (id: SessionId) => {
+      this.snapshot = applySessionDelete(this.snapshot, id);
       await this.save();
     },
   };

@@ -8,6 +8,7 @@ import { db, type VoltDatabase } from '../../data/database';
 import type { UserSettings } from '../../domain/types';
 import { listenForWebInstall } from '../../pwa/install';
 import { registerWebApp } from '../../pwa/register';
+import { ConfirmProvider } from '../../ui/ConfirmProvider';
 import { VoltThemeProvider, useVoltFonts } from '../../ui/theme/ThemeProvider';
 
 interface VoltContextValue {
@@ -80,7 +81,9 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
 
   return (
     <VoltContext.Provider value={value}>
-      <VoltThemeProvider preference={settings.theme}>{children}</VoltThemeProvider>
+      <VoltThemeProvider preference={settings.theme}>
+        <ConfirmProvider>{children}</ConfirmProvider>
+      </VoltThemeProvider>
     </VoltContext.Provider>
   );
 }

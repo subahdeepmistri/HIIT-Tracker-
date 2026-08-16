@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { localDateKey } from '@/src/domain/date';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function CalendarScreen() {
@@ -96,7 +97,7 @@ export default function CalendarScreen() {
             <Button label="Mark rest day" variant="ghost" onPress={() => void db.trainingDays.markRest(selected)} />
           </View>
         </Card>
-        <Button label="Back" variant="ghost" onPress={() => router.back()} />
+        <Button label="Back" variant="ghost" onPress={() => goBackOr(router, '/history')} />
       </ScrollView>
     </SafeAreaView>
   );

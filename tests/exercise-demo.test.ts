@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { CATALOG_EXERCISES } from '../src/data/seed/exercises';
 import {
+  CATALOG_DEMO_IDS,
   VIDEO_DEMO_IDS,
   canPlayDemoVideo,
   demoIdForLiveView,
+  fallbackDemoId,
   shouldAnimateDemoFrames,
 } from '../src/features/live/exerciseDemoLogic';
 
@@ -21,6 +24,15 @@ describe('demoIdForLiveView', () => {
     expect(
       demoIdForLiveView({ phase: 'REST', currentExerciseId: 'ex-high-knees', nextExerciseId: 'ex-mountain-climbers' }),
     ).toBe('ex-mountain-climbers');
+  });
+
+  it('covers every catalog exercise with a form reference', () => {
+    const ids = new Set<string>(CATALOG_DEMO_IDS);
+    for (const exercise of CATALOG_EXERCISES) {
+      expect(ids.has(exercise.id)).toBe(true);
+    }
+    expect(fallbackDemoId('isometric')).toBe('ex-plank');
+    expect(fallbackDemoId('locomotion')).toBe('ex-high-knees');
   });
 
   it('registers looping videos for the dynamic Morning HIIT movements', () => {

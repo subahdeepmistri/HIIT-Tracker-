@@ -1,17 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createId } from '@/src/domain/ids';
-import type { TrackingMode, WorkoutExercise } from '@/src/domain/types';
-
-const TRACKING_MODES: TrackingMode[] = ['TIME', 'REPS', 'DISTANCE', 'HYBRID'];
+import type { WorkoutExercise } from '@/src/domain/types';
 import { Units } from '@/src/domain/units';
 import { validateWorkoutDraft } from '@/src/domain/validation';
 import { plannedDurationForDraft } from '@/src/engine/workout/plannedDuration';
 import { useVolt } from '@/src/features/app/VoltProvider';
-import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { BuilderExerciseCard } from '@/src/features/workouts/BuilderExerciseCard';
+import { ExercisePicker } from '@/src/features/workouts/ExercisePicker';
+import { confirmAction } from '@/src/ui/confirm';
+import { Body, Button, Card, Heading, Label } from '@/src/ui/components/primitives';
+import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function BuilderScreen() {
@@ -39,22 +41,26 @@ export default function BuilderScreen() {
     [name, rounds, items, settings.countdownSeconds],
   );
 
-  function addExercise(exerciseId: WorkoutExercise['exerciseId']) {
-    const exercise = db.exercises.get(exerciseId);
-    if (!exercise) return;
-    setItems((current) => [
-      ...current,
-      {
+  function addExercises(exerciseIds: Array<WorkoutExercise['exerciseId']>) {
+    const workoutId = (existing?.workout.id ?? createId()) as WorkoutExercise['workoutId'];
+    const added: WorkoutExercise[] = [];
+    for (const exerciseId of exerciseIds) {
+      const exercise = db.exercises.get(exerciseId);
+      if (!exercise) continue;
+      added.push({
         id: createId(),
-        workoutId: (existing?.workout.id ?? createId()) as WorkoutExercise['workoutId'],
+        workoutId,
         exerciseId,
-        orderIndex: current.length,
+        orderIndex: 0,
         trackingMode: exercise.trackingMode,
         plannedWorkSeconds: exercise.defaultWorkDurationSeconds || settings.defaultWorkSeconds,
         plannedRestSeconds: exercise.defaultRestDurationSeconds || settings.defaultRestSeconds,
         plannedReps: exercise.trackingMode === 'REPS' || exercise.trackingMode === 'HYBRID' ? 12 : undefined,
-      },
-    ]);
+      });
+    }
+    setItems((current) =>
+      [...current, ...added].map((row, index) => ({ ...row, orderIndex: index })),
+    );
     setPickerOpen(false);
   }
 
@@ -88,119 +94,84 @@ export default function BuilderScreen() {
         <Field label="Name" value={name} onChange={setName} placeholder="Morning HIIT" />
         <Field label="Notes" value={notes} onChange={setNotes} placeholder="Optional" />
         <Card>
-          <Label>Rounds</Label>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
-            <Button label="−" variant="ghost" onPress={() => setRounds((value) => Math.max(1, value - 1))} />
-            <Strong>{rounds}</Strong>
-            <Button label="+" variant="ghost" onPress={() => setRounds((value) => value + 1)} />
-          </View>
-          <Body style={{ marginTop: 12, color: theme.color.muted }}>
-            Planned duration {Units.formatCompactDuration(duration)}
+          <Label>Training time</Label>
+          <Text
+            style={{
+              marginTop: 6,
+              fontFamily: theme.type.display,
+              color: theme.color.accent,
+              fontSize: 40,
+              lineHeight: 42,
+            }}>
+            {Units.formatCompactDuration(duration)}
+          </Text>
+          <Body style={{ marginTop: 8, color: theme.color.muted, fontSize: 15 }}>
+            Work and rest between intervals. Countdown is not included.
           </Body>
+          <View
+            style={{
+              marginTop: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 12,
+              borderRadius: theme.radius.md,
+              backgroundColor: theme.color.surface2,
+              borderWidth: 1,
+              borderColor: theme.color.line,
+            }}>
+            <Label>Rounds</Label>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Button label="−" variant="ghost" onPress={() => setRounds((value) => Math.max(1, value - 1))} />
+              <Text style={{ fontFamily: theme.type.display, color: theme.color.text, fontSize: 28, lineHeight: 30 }}>
+                {rounds}
+              </Text>
+              <Button label="+" variant="ghost" onPress={() => setRounds((value) => value + 1)} />
+            </View>
+          </View>
         </Card>
 
-        {items.map((item, index) => {
-          const exercise = db.exercises.get(item.exerciseId);
-          return (
-            <Card key={item.id}>
-              <Strong>
-                {index + 1}. {exercise?.name ?? 'Exercise'}
-              </Strong>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                {TRACKING_MODES.map((mode) => (
-                  <Button
-                    key={mode}
-                    label={mode}
-                    variant={item.trackingMode === mode ? 'primary' : 'ghost'}
-                    onPress={() =>
-                      setItems((current) =>
-                        current.map((row) => (row.id === item.id ? { ...row, trackingMode: mode } : row)),
-                      )
-                    }
-                  />
-                ))}
-              </View>
-              <StepperRow
-                label="Work (s)"
-                value={item.plannedWorkSeconds}
-                onChange={(value) =>
-                  setItems((current) =>
-                    current.map((row) => (row.id === item.id ? { ...row, plannedWorkSeconds: value } : row)),
-                  )
-                }
-              />
-              <StepperRow
-                label="Rest (s)"
-                value={item.plannedRestSeconds}
-                onChange={(value) =>
-                  setItems((current) =>
-                    current.map((row) => (row.id === item.id ? { ...row, plannedRestSeconds: value } : row)),
-                  )
-                }
-              />
-              {item.trackingMode === 'REPS' || item.trackingMode === 'HYBRID' ? (
-                <StepperRow
-                  label="Target reps"
-                  value={item.plannedReps ?? 0}
-                  onChange={(value) =>
-                    setItems((current) =>
-                      current.map((row) => (row.id === item.id ? { ...row, plannedReps: value || undefined } : row)),
-                    )
-                  }
-                />
-              ) : null}
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                <Button
-                  label="Up"
-                  variant="ghost"
-                  onPress={() =>
-                    setItems((current) => {
-                      if (index === 0) return current;
-                      const next = [...current];
-                      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                      return next;
-                    })
-                  }
-                />
-                <Button
-                  label="Down"
-                  variant="ghost"
-                  onPress={() =>
-                    setItems((current) => {
-                      if (index === current.length - 1) return current;
-                      const next = [...current];
-                      [next[index + 1], next[index]] = [next[index], next[index + 1]];
-                      return next;
-                    })
-                  }
-                />
-                <Button
-                  label="Remove"
-                  variant="danger"
-                  onPress={() => setItems((current) => current.filter((row) => row.id !== item.id))}
-                />
-              </View>
-            </Card>
-          );
-        })}
+        {items.map((item, index) => (
+          <BuilderExerciseCard
+            key={item.id}
+            index={index}
+            item={item}
+            exercise={db.exercises.get(item.exerciseId)}
+            onChange={(patch) =>
+              setItems((current) => current.map((row) => (row.id === item.id ? { ...row, ...patch } : row)))
+            }
+            onMove={(direction) =>
+              setItems((current) => {
+                const nextIndex = index + direction;
+                if (nextIndex < 0 || nextIndex >= current.length) return current;
+                const next = [...current];
+                [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+                return next;
+              })
+            }
+            onRemove={() => {
+              void confirmAction(
+                'Remove this exercise?',
+                'It will leave this workout only. Other sessions are not changed.',
+                'Yes, remove',
+                { cancelLabel: 'Cancel', tone: 'danger' },
+              ).then((ok) => {
+                if (ok) setItems((current) => current.filter((row) => row.id !== item.id));
+              });
+            }}
+          />
+        ))}
 
-        <Button label="Add exercise" variant="ghost" onPress={() => setPickerOpen((value) => !value)} />
-        {pickerOpen ? (
-          <Card>
-            {db.exercises.list().map((exercise) => (
-              <Pressable
-                key={exercise.id}
-                onPress={() => addExercise(exercise.id)}
-                style={{ minHeight: 48, justifyContent: 'center' }}>
-                <Strong>{exercise.name}</Strong>
-                <Body style={{ color: theme.color.muted }}>{exercise.category}</Body>
-              </Pressable>
-            ))}
-          </Card>
-        ) : null}
+        <Button label="Add exercises" variant="ghost" onPress={() => setPickerOpen(true)} />
+        <ExercisePicker
+          visible={pickerOpen}
+          exercises={db.exercises.list()}
+          onCancel={() => setPickerOpen(false)}
+          onAdd={addExercises}
+        />
 
         <Button label="Save workout" large onPress={() => void save()} />
-        <Button label="Cancel" variant="ghost" onPress={() => router.back()} />
+        <Button label="Cancel" variant="ghost" onPress={() => goBackOr(router, '/workouts')} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -239,19 +210,6 @@ function Field({
           borderColor: theme.color.line,
         }}
       />
-    </View>
-  );
-}
-
-function StepperRow({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-      <Body>{label}</Body>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Button label="−" variant="ghost" onPress={() => onChange(Math.max(0, value - 1))} />
-        <Strong>{value}</Strong>
-        <Button label="+" variant="ghost" onPress={() => onChange(value + 1)} />
-      </View>
     </View>
   );
 }

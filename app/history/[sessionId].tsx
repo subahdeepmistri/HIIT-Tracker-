@@ -8,7 +8,9 @@ import { Units } from '@/src/domain/units';
 import { calculateSessionMetrics } from '@/src/engine/calc/metrics';
 import { plannedActualRows } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
+import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
+import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function SessionDetailScreen() {
@@ -22,7 +24,7 @@ export default function SessionDetailScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg, padding: 20 }}>
         <Heading>Missing session</Heading>
-        <Button label="Back" onPress={() => router.back()} />
+        <Button label="Back" onPress={() => goBackOr(router, '/history')} />
       </SafeAreaView>
     );
   }
@@ -57,7 +59,15 @@ export default function SessionDetailScreen() {
             ))}
           </View>
         </Card>
-        <Button label="Back" variant="ghost" onPress={() => router.back()} />
+        <Button
+          label="Delete session"
+          variant="danger"
+          onPress={async () => {
+            const deleted = await confirmAndDeleteSession(db, session.id);
+            if (deleted) goBackOr(router, '/history');
+          }}
+        />
+        <Button label="Back" variant="ghost" onPress={() => goBackOr(router, '/history')} />
       </ScrollView>
     </SafeAreaView>
   );

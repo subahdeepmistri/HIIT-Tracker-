@@ -10,6 +10,7 @@ import { formatRecordValue, recordKindLabel } from '@/src/engine/records/persona
 import { scoreFromMetrics } from '@/src/engine/score/performanceScore';
 import { plannedActualRows } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
+import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
 import { Body, Button, Card, Heading, Label, Stat, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
@@ -198,6 +199,14 @@ export default function SummaryScreen() {
         ) : null}
 
         <Button label="Done" large onPress={() => router.replace('/')} />
+        <Button
+          label="Delete this session"
+          variant="danger"
+          onPress={async () => {
+            const deleted = await confirmAndDeleteSession(db, session.id);
+            if (deleted) router.replace('/');
+          }}
+        />
       </ScrollView>
     </SafeAreaView>
   );

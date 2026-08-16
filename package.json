@@ -1,6 +1,6 @@
 {
   "name": "hiit-tracker",
-  "main": "expo-router/entry",
+  "main": "./entry.js",
   "version": "1.0.0",
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
