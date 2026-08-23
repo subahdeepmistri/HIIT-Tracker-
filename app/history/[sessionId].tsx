@@ -5,10 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { isValue } from '@/src/domain/metrics';
 import { Units } from '@/src/domain/units';
+import { buildSessionProgress } from '@/src/engine/analytics/sessionProgress';
 import { calculateSessionMetrics } from '@/src/engine/calc/metrics';
-import { plannedActualRows } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
+import { RecordedCompletionCard } from '@/src/ui/components/RecordedCompletion';
 import { Body, Button, Card, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { goBackOr } from '@/src/ui/navigation';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
@@ -29,6 +30,7 @@ export default function SessionDetailScreen() {
     );
   }
   const metrics = calculateSessionMetrics(session, intervals, session.endedAt ?? Date.now());
+  const recorded = buildSessionProgress(session, intervals, session.endedAt ?? Date.now());
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
@@ -41,20 +43,22 @@ export default function SessionDetailScreen() {
             ? Units.formatPercent(metrics.workCompletionPercent.value)
             : 'Not enough data'}
         </Body>
+        <RecordedCompletionCard
+          footnote="Rebuilt from this session’s interval rows. Missing inputs stay empty."
+          tracks={recorded.tracks}
+          scoreParts={recorded.scoreParts}
+          workRest={recorded.workRest}
+          intervals={recorded.intervals}
+        />
         <Card>
-          <Label>Intervals</Label>
+          <Label>All intervals</Label>
           <View style={{ marginTop: 12, gap: 10 }}>
             {intervals.map((row) => (
               <View key={row.id}>
                 <Strong>
                   R{row.roundIndex} {row.phase} · {row.exerciseNameSnapshot}
                 </Strong>
-                <Body style={{ color: theme.color.muted }}>
-                  {plannedActualRows(row)
-                    .map((pair) => `${pair.metric} ${pair.planned} / ${pair.actual}`)
-                    .join(' · ')}{' '}
-                  · {row.outcome}
-                </Body>
+                <Body style={{ color: theme.color.muted }}>{row.outcome}</Body>
               </View>
             ))}
           </View>

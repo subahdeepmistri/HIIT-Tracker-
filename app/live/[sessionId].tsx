@@ -251,6 +251,28 @@ export default function LiveWorkoutScreen() {
               value={view.workoutProgress}
               color={theme.color.accent}
             />
+            <ProgressTrack
+              label="Rounds done"
+              detail={view.roundDetail}
+              value={view.roundProgress}
+              color={theme.color.accent}
+            />
+            {view.repsDetail != null ? (
+              <ProgressTrack
+                label="Reps"
+                detail={view.repsDetail}
+                value={view.repsProgress}
+                color={theme.color.accent}
+              />
+            ) : null}
+            {view.distanceDetail != null ? (
+              <ProgressTrack
+                label="Distance"
+                detail={view.distanceDetail}
+                value={view.distanceProgress}
+                color={theme.color.accent}
+              />
+            ) : null}
           </View>
           {view.targetLabel ? (
             <Text

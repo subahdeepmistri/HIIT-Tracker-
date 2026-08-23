@@ -20,6 +20,8 @@ export default function ProfileScreen() {
   const { settings } = useVolt();
   const { canInstall, install } = useWebInstall();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [checkingIntegrity, setCheckingIntegrity] = useState(false);
+  const [integrityResult, setIntegrityResult] = useState<{ valid: boolean; issues: string[]; fixed?: string[] } | null>(null);
 
   async function patch(next: Partial<typeof settings>) {
     await db.settings.update(next);
@@ -50,6 +52,22 @@ export default function ProfileScreen() {
     } else {
       Alert.alert('Export ready', `Saved to ${file}`);
     }
+  }
+
+  async function checkIntegrity() {
+    setCheckingIntegrity(true);
+    const result = db.validateIntegrity();
+    setIntegrityResult({ ...result, fixed: undefined });
+    setCheckingIntegrity(false);
+  }
+
+  async function repairIntegrity() {
+    setCheckingIntegrity(true);
+    const result = await db.repair();
+    // Re-validate after repair
+    const validation = db.validateIntegrity();
+    setIntegrityResult({ ...validation, fixed: result.fixed });
+    setCheckingIntegrity(false);
   }
 
   return (
@@ -219,6 +237,35 @@ export default function ProfileScreen() {
           <View style={{ marginTop: 12, gap: 8 }}>
             <Button label="Export JSON" variant="ghost" onPress={() => void exportData('json')} />
             <Button label="Export CSV" variant="ghost" onPress={() => void exportData('csv')} />
+            <Button label="Check data integrity" variant="ghost" onPress={() => void checkIntegrity()} disabled={checkingIntegrity} />
+            {integrityResult ? (
+              <View style={{ gap: 8, marginTop: 8 }}>
+                <Body style={{ color: integrityResult.valid ? theme.color.success : theme.color.warn }}>
+                  {integrityResult.valid ? '✓ All data is consistent' : `⚠ ${integrityResult.issues.length} issue(s) found`}
+                </Body>
+                {!integrityResult.valid && integrityResult.issues.length > 0 && (
+                  <View style={{ gap: 4 }}>
+                    {integrityResult.issues.slice(0, 5).map((issue, i) => (
+                      <Body key={i} style={{ color: theme.color.muted, fontSize: 13 }}>
+                        {issue}
+                      </Body>
+                    ))}
+                    {integrityResult.issues.length > 5 && (
+                      <Body style={{ color: theme.color.muted, fontSize: 13 }}>
+                        +{integrityResult.issues.length - 5} more...
+                      </Body>
+                    )}
+                  </View>
+                )}
+                {!integrityResult.valid && integrityResult.fixed?.length ? (
+                  <Body style={{ color: theme.color.success, fontSize: 13 }}>
+                    Fixed: {integrityResult.fixed.join(', ')}
+                  </Body>
+                ) : !integrityResult.valid ? (
+                  <Button label="Repair data" variant="primary" onPress={() => void repairIntegrity()} disabled={checkingIntegrity} />
+                ) : null}
+              </View>
+            ) : null}
             <Button
               label={confirmDelete ? 'Tap again to delete all workout data' : 'Delete all workout data'}
               variant="danger"

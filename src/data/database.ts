@@ -63,6 +63,7 @@ export class VoltDatabase {
   snapshot: VoltSnapshot = emptySnapshot();
   private ready = false;
   private listeners = new Set<() => void>();
+  private lastSaveError: string | null = null;
 
   readonly exercises = {
     list: () => this.snapshot.exercises.filter((row) => true),
@@ -237,12 +238,16 @@ export class VoltDatabase {
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<VoltSnapshot> & { version?: number };
         const incomingVersion = parsed.version ?? 1;
+        const baseSnapshot = emptySnapshot();
         const merged: VoltSnapshot = {
-          ...emptySnapshot(),
+          ...baseSnapshot,
           ...parsed,
           version: incomingVersion,
           settings: { ...defaultSettings(), ...parsed.settings },
-          user: { ...emptySnapshot().user, ...parsed.user },
+          user: { ...baseSnapshot.user, ...parsed.user },
+          exercises: parsed.exercises && parsed.exercises.length > 0 ? parsed.exercises : baseSnapshot.exercises,
+          workouts: parsed.workouts && parsed.workouts.length > 0 ? parsed.workouts : baseSnapshot.workouts,
+          workoutExercises: parsed.workoutExercises && parsed.workoutExercises.length > 0 ? parsed.workoutExercises : baseSnapshot.workoutExercises,
         };
         this.snapshot = applyMigrations(merged);
         const needsWrite =
@@ -260,15 +265,31 @@ export class VoltDatabase {
     this.ready = true;
   }
 
-  async save(options?: { notify?: boolean }): Promise<void> {
+  async save(options?: { notify?: boolean }): Promise<{ success: boolean; error?: string }> {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.snapshot));
-    } catch {
-      // Quota / private mode must never freeze a live workout.
+      const json = JSON.stringify(this.snapshot);
+      await AsyncStorage.setItem(STORAGE_KEY, json);
+      this.lastSaveError = null;
+      if (options?.notify !== false) {
+        this.listeners.forEach((listener) => listener());
+      }
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown storage error';
+      this.lastSaveError = `Failed to save: ${message}`;
+      if (options?.notify !== false) {
+        this.listeners.forEach((listener) => listener());
+      }
+      return { success: false, error: this.lastSaveError };
     }
-    if (options?.notify !== false) {
-      this.listeners.forEach((listener) => listener());
-    }
+  }
+
+  getLastSaveError(): string | null {
+    return this.lastSaveError;
+  }
+
+  clearLastSaveError(): void {
+    this.lastSaveError = null;
   }
 
   async deleteWorkoutData(): Promise<void> {
@@ -285,6 +306,97 @@ export class VoltDatabase {
       AsyncStorage.removeItem(DEFAULTS.legacySessionPersistKey),
     ]);
     await this.save();
+  }
+
+  validateIntegrity(): { valid: boolean; issues: string[] } {
+    const issues: string[] = [];
+    const { snapshot } = this;
+
+    if (!snapshot.user?.id) issues.push('Missing user ID');
+    if (!snapshot.settings) issues.push('Missing settings');
+    if (!Array.isArray(snapshot.exercises)) issues.push('Exercises array is missing');
+    if (!Array.isArray(snapshot.workouts)) issues.push('Workouts array is missing');
+    if (!Array.isArray(snapshot.workoutExercises)) issues.push('WorkoutExercises array is missing');
+    if (!Array.isArray(snapshot.sessions)) issues.push('Sessions array is missing');
+    if (!Array.isArray(snapshot.intervals)) issues.push('Intervals array is missing');
+    if (!Array.isArray(snapshot.performanceRecords)) issues.push('PerformanceRecords array is missing');
+    if (!Array.isArray(snapshot.personalRecords)) issues.push('PersonalRecords array is missing');
+    if (!Array.isArray(snapshot.trainingDays)) issues.push('TrainingDays array is missing');
+
+    const exerciseIds = new Set(snapshot.exercises.map((e) => e.id));
+    for (const we of snapshot.workoutExercises) {
+      if (!exerciseIds.has(we.exerciseId)) {
+        issues.push(`WorkoutExercise references missing exercise: ${we.exerciseId}`);
+      }
+    }
+
+    const sessionIds = new Set(snapshot.sessions.map((s) => s.id));
+    for (const interval of snapshot.intervals) {
+      if (!sessionIds.has(interval.sessionId)) {
+        issues.push(`Interval references missing session: ${interval.sessionId}`);
+      }
+      if (!exerciseIds.has(interval.exerciseId)) {
+        issues.push(`Interval references missing exercise: ${interval.exerciseId}`);
+      }
+    }
+
+    for (const perf of snapshot.performanceRecords) {
+      if (!sessionIds.has(perf.sessionId)) {
+        issues.push(`PerformanceRecord references missing session: ${perf.sessionId}`);
+      }
+    }
+
+    for (const record of snapshot.personalRecords) {
+      if (!sessionIds.has(record.sessionId)) {
+        issues.push(`PersonalRecord references missing session: ${record.sessionId}`);
+      }
+      if (record.exerciseId && !exerciseIds.has(record.exerciseId)) {
+        issues.push(`PersonalRecord references missing exercise: ${record.exerciseId}`);
+      }
+    }
+
+    return { valid: issues.length === 0, issues };
+  }
+
+  async repair(): Promise<{ success: boolean; fixed: string[] }> {
+    const fixed: string[] = [];
+    const { snapshot } = this;
+    let changed = false;
+
+    const exerciseIds = new Set(snapshot.exercises.map((e) => e.id));
+    const validWorkoutExercises = snapshot.workoutExercises.filter((we) => exerciseIds.has(we.exerciseId));
+    if (validWorkoutExercises.length !== snapshot.workoutExercises.length) {
+      snapshot.workoutExercises = validWorkoutExercises;
+      fixed.push(`Removed ${snapshot.workoutExercises.length - validWorkoutExercises.length} orphaned WorkoutExercises`);
+      changed = true;
+    }
+
+    const sessionIds = new Set(snapshot.sessions.map((s) => s.id));
+    const validIntervals = snapshot.intervals.filter((i) => sessionIds.has(i.sessionId) && exerciseIds.has(i.exerciseId));
+    if (validIntervals.length !== snapshot.intervals.length) {
+      snapshot.intervals = validIntervals;
+      fixed.push(`Removed ${snapshot.intervals.length - validIntervals.length} orphaned Intervals`);
+      changed = true;
+    }
+
+    const validPerformance = snapshot.performanceRecords.filter((p) => sessionIds.has(p.sessionId));
+    if (validPerformance.length !== snapshot.performanceRecords.length) {
+      snapshot.performanceRecords = validPerformance;
+      fixed.push(`Removed ${snapshot.performanceRecords.length - validPerformance.length} orphaned PerformanceRecords`);
+      changed = true;
+    }
+
+    const validRecords = snapshot.personalRecords.filter((r) => sessionIds.has(r.sessionId) && (!r.exerciseId || exerciseIds.has(r.exerciseId)));
+    if (validRecords.length !== snapshot.personalRecords.length) {
+      snapshot.personalRecords = validRecords;
+      fixed.push(`Removed ${snapshot.personalRecords.length - validRecords.length} orphaned PersonalRecords`);
+      changed = true;
+    }
+
+    if (changed) {
+      await this.save();
+    }
+    return { success: true, fixed };
   }
 }
 

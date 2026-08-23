@@ -45,6 +45,9 @@ export default function HistoryScreen() {
                 ]
                   .filter(Boolean)
                   .join(' · ')}
+                completion={
+                  record?.workCompletionPercent != null ? record.workCompletionPercent / 100 : null
+                }
                 onOpen={() => router.push(`/history/${session.id}`)}
                 onDelete={() => void confirmAndDeleteSession(db, session.id)}
               />

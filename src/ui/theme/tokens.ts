@@ -12,6 +12,7 @@ export const darkColors = {
   warn: '#F5A524',
   danger: '#FF5A5A',
   success: '#3DDC97',
+  info: '#60A5FA',
   overlay: 'rgba(7,8,10,0.72)',
 };
 
@@ -29,6 +30,7 @@ export const lightColors = {
   warn: '#B45309',
   danger: '#DC2626',
   success: '#047857',
+  info: '#2563EB',
   overlay: 'rgba(18,20,26,0.45)',
 };
 

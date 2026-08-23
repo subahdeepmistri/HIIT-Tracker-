@@ -1,8 +1,10 @@
+import { densityLabel, type WorkDensityLabel } from '../../config/density';
 import { localDateKey } from '../../domain/date';
 import { isValue } from '../../domain/metrics';
 import type { IntervalSession, PerformanceRecord, WorkoutSession } from '../../domain/types';
 import type { ChartPoint } from '../../ui/charts/LineChart';
 import { calculateSessionMetrics } from '../calc/metrics';
+import { performanceScore, type ScoreComponent } from '../score/performanceScore';
 
 export type RangeKey = '7' | '30' | '90' | 'all';
 
@@ -36,6 +38,13 @@ export interface DashboardStats {
   averageIntervalCompletion: number | null;
   averageScore: number | null;
   averageWorkRestRatio: number | null;
+  averageRoundCompletion: number | null;
+  averageDistanceCompletion: number | null;
+  totalExercises: number;
+  totalCompletedIntervals: number;
+  totalPlannedWorkSeconds: number;
+  densityLabel: WorkDensityLabel | null;
+  scoreComponents: ScoreComponent[] | null;
   streak: number;
 }
 
@@ -65,9 +74,26 @@ export function dashboardStats(
   const totalRestSeconds = performance
     .filter((row) => completed.some((session) => session.id === row.sessionId))
     .reduce((sum, row) => sum + row.totalRestSeconds, 0);
-  const totalRounds = performance
-    .filter((row) => completed.some((session) => session.id === row.sessionId))
-    .reduce((sum, row) => sum + row.completedRounds, 0);
+  const matchedPerf = performance.filter((row) => completed.some((session) => session.id === row.sessionId));
+  const totalRounds = matchedPerf.reduce((sum, row) => sum + row.completedRounds, 0);
+  const totalExercises = matchedPerf.reduce((sum, row) => sum + row.exerciseCount, 0);
+  const totalCompletedIntervals = matchedPerf.reduce((sum, row) => sum + row.completedIntervals, 0);
+  const totalPlannedWorkSeconds = matchedPerf.reduce((sum, row) => sum + row.plannedWorkSeconds, 0);
+  const roundCompletions = meanOf(
+    completed.map((session) => {
+      const record = performanceBySession.get(session.id);
+      if (record?.roundCompletionPercent != null) return record.roundCompletionPercent;
+      if (!record || session.plannedRounds <= 0) return undefined;
+      return (record.completedRounds / session.plannedRounds) * 100;
+    }),
+  );
+  const distanceCompletions = meanOf(matchedPerf.map((row) => row.distanceCompletionPercent));
+  const scoreComponents = averageScoreComponents(completed, performanceBySession);
+  const density = densityLabel(
+    totalRestSeconds > 0 ? totalActiveSeconds / totalRestSeconds : totalActiveSeconds > 0 ? Number.POSITIVE_INFINITY : null,
+    totalRestSeconds,
+    totalActiveSeconds,
+  );
   return {
     workoutsCompleted: completed.filter((session) => session.status === 'COMPLETED').length,
     partialWorkouts: completed.filter((session) => session.status === 'PARTIAL').length,
@@ -83,8 +109,57 @@ export function dashboardStats(
     averageIntervalCompletion: intervalCompletions,
     averageScore: scores,
     averageWorkRestRatio: ratios,
+    averageRoundCompletion: roundCompletions,
+    averageDistanceCompletion: distanceCompletions,
+    totalExercises,
+    totalCompletedIntervals,
+    totalPlannedWorkSeconds,
+    densityLabel: density,
+    scoreComponents,
     streak: currentStreak(completed, now),
   };
+}
+
+function averageScoreComponents(
+  sessions: WorkoutSession[],
+  performanceBySession: Map<string, PerformanceRecord>,
+): ScoreComponent[] | null {
+  const buckets = new Map<string, { label: string; score: number; weight: number; count: number }>();
+  for (const session of sessions) {
+    const record = performanceBySession.get(session.id);
+    if (!record) continue;
+    const metric = performanceScore({
+      plannedWorkSeconds: record.plannedWorkSeconds,
+      actualWorkSeconds: record.totalActiveSeconds,
+      plannedWorkIntervals: record.plannedIntervals ?? 0,
+      completedWorkIntervals: record.completedIntervals,
+      plannedReps: record.plannedReps,
+      actualReps: record.totalReps,
+      plannedRounds: record.plannedRounds ?? session.plannedRounds,
+      completedRounds: record.completedRounds,
+    });
+    if (!isValue(metric)) continue;
+    for (const component of metric.value.components) {
+      const current = buckets.get(component.key) ?? {
+        label: component.label,
+        score: 0,
+        weight: 0,
+        count: 0,
+      };
+      current.score += component.score;
+      current.weight += component.renormalizedWeight;
+      current.count += 1;
+      buckets.set(component.key, current);
+    }
+  }
+  if (buckets.size === 0) return null;
+  return [...buckets.entries()].map(([key, row]) => ({
+    key: key as ScoreComponent['key'],
+    label: row.label,
+    score: row.score / row.count,
+    weight: row.weight / row.count,
+    renormalizedWeight: row.weight / row.count,
+  }));
 }
 
 function meanOf(values: Array<number | undefined>): number | null {
@@ -125,7 +200,7 @@ export function trendPoints(
   performance: PerformanceRecord[],
   range: RangeKey,
   now: number,
-  field: 'duration' | 'completion' | 'active' | 'rest' | 'reps' | 'score',
+  field: 'duration' | 'completion' | 'active' | 'rest' | 'reps' | 'score' | 'distance',
 ): ChartPoint[] {
   const selected = filterSessions(sessions, range, now);
   return selected
@@ -146,6 +221,10 @@ export function trendPoints(
       if (field === 'score') {
         if (record.performanceScore == null) return null;
         return { label, value: record.performanceScore };
+      }
+      if (field === 'distance') {
+        if (record.distanceCompletionPercent == null) return null;
+        return { label, value: record.distanceCompletionPercent };
       }
       if (record.totalReps == null) return null;
       return { label, value: record.totalReps };

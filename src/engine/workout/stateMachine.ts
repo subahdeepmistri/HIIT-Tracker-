@@ -6,6 +6,8 @@ import {
   calculateLiveProgress,
   formatIntervalProgressDetail,
   formatWorkoutProgressDetail,
+  liveRoundCompletion,
+  liveTargetProgress,
 } from './liveProgress';
 import type { PlannedSlot, PlannedWorkout } from './planner';
 
@@ -78,6 +80,12 @@ export interface LiveView {
   closedSlots: number;
   intervalDetail: string;
   workoutDetail: string;
+  roundProgress: number | null;
+  roundDetail: string;
+  repsProgress: number | null;
+  repsDetail: string | null;
+  distanceProgress: number | null;
+  distanceDetail: string | null;
 }
 
 export function createIdleState(): EngineState {
@@ -262,6 +270,10 @@ export function getLiveView(state: EngineState, now: number): LiveView {
     closedSlots: state.intervals.length,
     intervalProgress: progress,
   });
+  const visualPhase = state.phase === 'PAUSED' ? (state.pausedFrom ?? state.phase) : state.phase;
+  const round = liveRoundCompletion(visualPhase, slot?.roundIndex ?? 1, state.plannedRounds);
+  const reps = liveTargetProgress(state.currentReps, slot?.plannedReps);
+  const distance = liveTargetProgress(state.currentDistance, slot?.plannedDistance);
 
   return {
     phase: state.phase,
@@ -288,6 +300,12 @@ export function getLiveView(state: EngineState, now: number): LiveView {
     closedSlots: live.closedSlots,
     intervalDetail: formatIntervalProgressDetail(elapsed, plannedMs / 1000),
     workoutDetail: formatWorkoutProgressDetail(live.currentSlotNumber, live.totalSlots),
+    roundProgress: round.value,
+    roundDetail: round.detail,
+    repsProgress: slot?.plannedReps != null ? reps.value : null,
+    repsDetail: slot?.plannedReps != null ? reps.detail : null,
+    distanceProgress: slot?.plannedDistance != null ? distance.value : null,
+    distanceDetail: slot?.plannedDistance != null ? distance.detail : null,
   };
 }
 

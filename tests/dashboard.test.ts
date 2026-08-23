@@ -12,7 +12,33 @@ describe('dashboardStats', () => {
     expect(stats.totalTrainingSeconds).toBe(0);
     expect(stats.averageDurationSeconds).toBeNull();
     expect(stats.averageCompletion).toBeNull();
+    expect(stats.averageRoundCompletion).toBeNull();
+    expect(stats.averageDistanceCompletion).toBeNull();
+    expect(stats.scoreComponents).toBeNull();
+    expect(stats.densityLabel).toBeNull();
     expect(stats.streak).toBe(0);
+  });
+
+  it('surfaces round completion and score parts from recorded fields', () => {
+    const endedAt = Date.parse('2026-08-15T12:00:00');
+    const sessions = [{ ...session('s1', endedAt), plannedRounds: 4, plannedExerciseCount: 2 }];
+    const performance = [
+      {
+        ...perf('s1', 1780, 80),
+        completedRounds: 2,
+        completedIntervals: 6,
+        plannedIntervals: 8,
+        plannedWorkSeconds: 200,
+        totalActiveSeconds: 160,
+        intervalCompletionRate: 75,
+        plannedRounds: 4,
+      },
+    ];
+    const stats = dashboardStats(sessions, performance, endedAt);
+    expect(stats.averageRoundCompletion).toBe(50);
+    expect(stats.totalCompletedIntervals).toBe(6);
+    expect(stats.scoreComponents?.some((part) => part.key === 'roundScore')).toBe(true);
+    expect(stats.scoreComponents?.some((part) => part.key === 'completionScore')).toBe(true);
   });
 
   it('uses recorded training duration instead of wall-clock time', () => {

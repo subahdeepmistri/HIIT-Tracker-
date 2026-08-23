@@ -312,6 +312,7 @@ export class WorkoutController {
     const intervals = this.deps.db.intervals.listBySession(session.id);
     const metrics = calculateSessionMetrics(session, intervals, endedAt);
     const score = scoreFromMetrics(metrics, session.plannedRounds);
+    const completedRounds = isValue(metrics.completedRounds) ? metrics.completedRounds.value : 0;
     const performance: PerformanceRecord = {
       id: createId(),
       sessionId: session.id,
@@ -321,13 +322,21 @@ export class WorkoutController {
       totalActiveSeconds: isValue(metrics.totalActiveSeconds) ? metrics.totalActiveSeconds.value : 0,
       totalRestSeconds: isValue(metrics.totalRestSeconds) ? metrics.totalRestSeconds.value : 0,
       exerciseCount: isValue(metrics.exerciseCount) ? metrics.exerciseCount.value : 0,
-      completedRounds: isValue(metrics.completedRounds) ? metrics.completedRounds.value : 0,
+      completedRounds,
       completedIntervals: isValue(metrics.completedIntervals) ? metrics.completedIntervals.value : 0,
       plannedWorkSeconds: isValue(metrics.plannedWorkSeconds) ? metrics.plannedWorkSeconds.value : 0,
       plannedRestSeconds: intervals
         .filter((row) => row.phase === 'REST')
         .reduce((sum, row) => sum + row.plannedSeconds, 0),
       plannedReps: isValue(metrics.plannedReps) ? metrics.plannedReps.value : undefined,
+      plannedIntervals: isValue(metrics.plannedIntervals) ? metrics.plannedIntervals.value : undefined,
+      plannedRounds: session.plannedRounds,
+      plannedDistanceMeters: isValue(metrics.plannedDistanceMeters)
+        ? metrics.plannedDistanceMeters.value
+        : undefined,
+      actualDistanceMeters: isValue(metrics.actualDistanceMeters)
+        ? metrics.actualDistanceMeters.value
+        : undefined,
       totalReps: isValue(metrics.totalReps) ? metrics.totalReps.value : undefined,
       workCompletionPercent: isValue(metrics.workCompletionPercent)
         ? metrics.workCompletionPercent.value
@@ -337,6 +346,11 @@ export class WorkoutController {
         : undefined,
       intervalCompletionRate: isValue(metrics.intervalCompletionRate)
         ? metrics.intervalCompletionRate.value
+        : undefined,
+      roundCompletionPercent:
+        session.plannedRounds > 0 ? (completedRounds / session.plannedRounds) * 100 : undefined,
+      distanceCompletionPercent: isValue(metrics.distanceCompletionPercent)
+        ? metrics.distanceCompletionPercent.value
         : undefined,
       workRestRatio: isValue(metrics.workRest) && Number.isFinite(metrics.workRest.value.ratio)
         ? metrics.workRest.value.ratio

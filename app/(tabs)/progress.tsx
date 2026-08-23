@@ -4,11 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Units } from '@/src/domain/units';
 import { dashboardStats, filterSessions, type RangeKey, trendPoints } from '@/src/engine/analytics/dashboard';
+import { aggregateSessionProgress, buildSessionProgress } from '@/src/engine/analytics/sessionProgress';
 import { formatRecordValue, recordKindLabel } from '@/src/engine/records/personalRecords';
 import { recoveryGuidance } from '@/src/engine/recovery/guidance';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { LineChart } from '@/src/ui/charts/LineChart';
-import { ProgressTrack } from '@/src/ui/components/ProgressTrack';
+import { RecordedCompletionCard } from '@/src/ui/components/RecordedCompletion';
 import { Body, Card, EmptyState, Heading, Label, SegmentedControl, Stat, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
@@ -22,6 +23,11 @@ export default function ProgressScreen() {
   const sessions = filterSessions(allSessions, range, now);
   const performance = allPerformance.filter((row) => sessions.some((session) => session.id === row.sessionId));
   const stats = dashboardStats(sessions, performance, now);
+  const recorded = aggregateSessionProgress(
+    sessions.map((session) =>
+      buildSessionProgress(session, db.intervals.listBySession(session.id), session.endedAt ?? now),
+    ),
+  );
   const guidance = recoveryGuidance(
     allSessions.map((session) => ({ session, intervals: db.intervals.listBySession(session.id) })),
     now,
@@ -34,6 +40,7 @@ export default function ProgressScreen() {
   const restTrend = trendPoints(allSessions, allPerformance, range, now, 'rest');
   const repsTrend = trendPoints(allSessions, allPerformance, range, now, 'reps');
   const scoreTrend = trendPoints(allSessions, allPerformance, range, now, 'score');
+  const distanceTrend = trendPoints(allSessions, allPerformance, range, now, 'distance');
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }} edges={['top']}>
@@ -98,58 +105,32 @@ export default function ProgressScreen() {
               </Card>
               <Card style={{ flexGrow: 1, minWidth: '45%' }}>
                 <Stat
+                  label="Intervals"
+                  value={
+                    stats.totalCompletedIntervals > 0 ? String(stats.totalCompletedIntervals) : 'Not enough data'
+                  }
+                />
+              </Card>
+              <Card style={{ flexGrow: 1, minWidth: '45%' }}>
+                <Stat
+                  label="Exercises"
+                  value={stats.totalExercises > 0 ? String(stats.totalExercises) : 'Not enough data'}
+                />
+              </Card>
+              <Card style={{ flexGrow: 1, minWidth: '45%' }}>
+                <Stat
                   label="Total reps"
                   value={stats.totalReps == null ? 'Not enough data' : String(stats.totalReps)}
                 />
               </Card>
             </View>
 
-            <Card>
-              <Label>Recorded completion</Label>
-              <Body style={{ color: theme.color.muted, fontSize: 13, marginTop: 6, marginBottom: 14 }}>
-                Averages from stored interval rows in this range.
-              </Body>
-              <View style={{ gap: 16 }}>
-                <ProgressTrack
-                  label="Work"
-                  detail={
-                    stats.averageCompletion == null ? 'Not enough data' : Units.formatPercent(stats.averageCompletion)
-                  }
-                  value={stats.averageCompletion == null ? null : stats.averageCompletion / 100}
-                />
-                <ProgressTrack
-                  label="Intervals"
-                  detail={
-                    stats.averageIntervalCompletion == null
-                      ? 'Not enough data'
-                      : Units.formatPercent(stats.averageIntervalCompletion)
-                  }
-                  value={stats.averageIntervalCompletion == null ? null : stats.averageIntervalCompletion / 100}
-                />
-                <ProgressTrack
-                  label="Reps"
-                  detail={
-                    stats.averageRepCompletion == null
-                      ? 'Not enough data'
-                      : Units.formatPercent(stats.averageRepCompletion)
-                  }
-                  value={stats.averageRepCompletion == null ? null : stats.averageRepCompletion / 100}
-                />
-                <ProgressTrack
-                  label="Performance"
-                  detail={
-                    stats.averageScore == null ? 'Not enough data' : String(Math.round(stats.averageScore))
-                  }
-                  value={stats.averageScore == null ? null : stats.averageScore / 100}
-                />
-              </View>
-              <View style={{ marginTop: 18 }}>
-                <Label>Work : Rest</Label>
-                <Strong style={{ fontFamily: theme.type.display, fontSize: 32, marginTop: 6 }}>
-                  {stats.averageWorkRestRatio == null ? 'Not enough data' : Units.formatRatio(stats.averageWorkRestRatio)}
-                </Strong>
-              </View>
-            </Card>
+            <RecordedCompletionCard
+              footnote="Every bar is rebuilt from this range’s interval rows. Missing inputs stay empty — nothing is interpolated."
+              tracks={recorded.tracks}
+              scoreParts={recorded.scoreParts}
+              workRest={recorded.workRest}
+            />
 
             <TrendCard
               title="Duration"
@@ -189,6 +170,14 @@ export default function ProgressScreen() {
                 points={scoreTrend}
                 formatValue={(value) => String(Math.round(value))}
                 label="Performance score trend"
+              />
+            ) : null}
+            {distanceTrend.length > 0 ? (
+              <TrendCard
+                title="Distance completion"
+                points={distanceTrend}
+                formatValue={(value) => Units.formatPercent(value)}
+                label="Distance completion trend"
               />
             ) : null}
           </>

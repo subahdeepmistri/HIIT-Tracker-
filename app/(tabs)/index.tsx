@@ -3,11 +3,13 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { weekStats, greeting } from '@/src/engine/analytics/dashboard';
+import { filterSessions, greeting, weekStats } from '@/src/engine/analytics/dashboard';
+import { aggregateSessionProgress, buildSessionProgress } from '@/src/engine/analytics/sessionProgress';
 import { planWorkout } from '@/src/engine/workout/planner';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
 import { SessionListRow } from '@/src/features/history/SessionListRow';
+import { RecordedCompletionCard } from '@/src/ui/components/RecordedCompletion';
 import { Body, Button, Card, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import { Units } from '@/src/domain/units';
@@ -21,6 +23,11 @@ export default function HomeScreen() {
   const sessions = db.sessions.list();
   const performance = db.performance.list();
   const week = weekStats(sessions, performance, now.getTime());
+  const weekRecorded = aggregateSessionProgress(
+    filterSessions(sessions, '7', now.getTime()).map((session) =>
+      buildSessionProgress(session, db.intervals.listBySession(session.id), session.endedAt ?? now.getTime()),
+    ),
+  );
   const workouts = db.workouts.list();
   const last = sessions[0];
   const featured = (last && db.workouts.get(last.workoutId)) || workouts[0];
@@ -114,23 +121,36 @@ export default function HomeScreen() {
           />
         )}
 
-        {week.workoutsCompleted > 0 ? (
-          <Card>
-            <Label>Your progress · this week</Label>
-            <View style={{ flexDirection: 'row', marginTop: 16, gap: 12 }}>
-              <MiniStat label="Workouts" value={String(week.workoutsCompleted)} />
-              <MiniStat label="Active" value={Units.formatCompactDuration(week.totalActiveSeconds)} />
-              <MiniStat
-                label="Completion"
-                value={week.averageCompletion == null ? '—' : Units.formatPercent(week.averageCompletion)}
-              />
-            </View>
-          </Card>
+        {week.sessionsRecorded > 0 ? (
+          <>
+            <Card>
+              <Label>Your progress · this week</Label>
+              <View style={{ flexDirection: 'row', marginTop: 16, gap: 12 }}>
+                <MiniStat
+                  label="Sessions"
+                  value={String(week.sessionsRecorded)}
+                />
+                <MiniStat label="Active" value={Units.formatCompactDuration(week.totalActiveSeconds)} />
+                <MiniStat
+                  label="Training"
+                  value={Units.formatCompactDuration(week.totalTrainingSeconds)}
+                />
+              </View>
+            </Card>
+            <RecordedCompletionCard
+              title="This week’s recorded bars"
+              footnote="Rebuilt from this week’s interval rows. Empty bars mean that input was never recorded."
+              tracks={weekRecorded.tracks}
+              scoreParts={weekRecorded.scoreParts}
+              workRest={weekRecorded.workRest}
+              compact
+            />
+          </>
         ) : (
           <Card>
             <Label>Your progress</Label>
             <Body style={{ marginTop: 8 }}>
-              No sessions recorded this week. Stats appear after you complete a workout.
+              No sessions recorded this week. Bars appear after you complete a workout.
             </Body>
           </Card>
         )}
@@ -170,6 +190,9 @@ export default function HomeScreen() {
                       ]
                         .filter(Boolean)
                         .join(' · ')}
+                      completion={
+                        record?.workCompletionPercent != null ? record.workCompletionPercent / 100 : null
+                      }
                       onOpen={() => router.push(`/history/${session.id}`)}
                       onDelete={() => void confirmAndDeleteSession(db, session.id)}
                     />

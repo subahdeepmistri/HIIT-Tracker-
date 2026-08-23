@@ -82,6 +82,45 @@ export function formatProgressPercent(value: number): string {
   return Units.formatPercent(clamp01(value) * 100);
 }
 
+export function liveRoundCompletion(
+  phase: WorkoutPhase,
+  roundIndex: number,
+  totalRounds: number,
+): { value: number | null; detail: string } {
+  if (!Number.isFinite(totalRounds) || totalRounds <= 0) {
+    return { value: null, detail: 'Not enough data' };
+  }
+  if (phase === 'COMPLETED') {
+    return { value: 1, detail: `${totalRounds} / ${totalRounds}` };
+  }
+  if (phase === 'COUNTDOWN' || phase === 'IDLE' || phase === 'CANCELLED') {
+    return { value: 0, detail: `0 / ${totalRounds}` };
+  }
+  const safeRound = Number.isFinite(roundIndex) ? Math.max(1, roundIndex) : 1;
+  const completed = Math.max(0, Math.min(totalRounds, safeRound - 1));
+  return { value: completed / totalRounds, detail: `${completed} / ${totalRounds}` };
+}
+
+export function liveTargetProgress(
+  current: number,
+  planned: number | undefined,
+): { value: number | null; detail: string } {
+  if (planned == null || !Number.isFinite(planned) || planned <= 0) {
+    return { value: null, detail: 'Not enough data' };
+  }
+  if (!Number.isFinite(current) || current < 0) {
+    return { value: null, detail: 'Not enough data' };
+  }
+  const shown = Number.isInteger(current) && Number.isInteger(planned)
+    ? `${current} / ${planned}`
+    : `${trimLiveNumber(current)} / ${trimLiveNumber(planned)}`;
+  return { value: current / planned, detail: shown };
+}
+
+function trimLiveNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));

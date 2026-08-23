@@ -5,13 +5,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { isValue } from '@/src/domain/metrics';
 import { Units } from '@/src/domain/units';
+import { buildSessionProgress } from '@/src/engine/analytics/sessionProgress';
 import { calculateSessionMetrics } from '@/src/engine/calc/metrics';
 import { formatRecordValue, recordKindLabel } from '@/src/engine/records/personalRecords';
-import { scoreFromMetrics } from '@/src/engine/score/performanceScore';
-import { plannedActualRows } from '@/src/engine/workout/trackingLabel';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { confirmAndDeleteSession } from '@/src/features/history/deleteSession';
-import { Body, Button, Card, Heading, Label, Stat, Strong } from '@/src/ui/components/primitives';
+import { RecordedCompletionCard } from '@/src/ui/components/RecordedCompletion';
+import { Body, Button, Card, Heading, Label, Stat } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
 export default function SummaryScreen() {
@@ -34,8 +34,7 @@ export default function SummaryScreen() {
   }
 
   const metrics = calculateSessionMetrics(session, intervals, session.endedAt ?? Date.now());
-  const score = scoreFromMetrics(metrics, session.plannedRounds);
-  const work = intervals.filter((row) => row.phase === 'WORK');
+  const recorded = buildSessionProgress(session, intervals, session.endedAt ?? Date.now());
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }}>
@@ -102,39 +101,13 @@ export default function SummaryScreen() {
           </Card>
         </View>
 
-        <Card>
-          <Label>Work : Rest</Label>
-          {isValue(metrics.workRest) ? (
-            <>
-              <Heading style={{ fontSize: 32, marginTop: 8 }}>{metrics.workRest.value.display}</Heading>
-              <Body style={{ marginTop: 6 }}>{metrics.workRest.value.label}</Body>
-              <Body style={{ marginTop: 4, color: theme.color.muted, fontSize: 13 }}>
-                Training interpretation — not a medical classification.
-              </Body>
-            </>
-          ) : (
-            <Body style={{ marginTop: 8 }}>Not enough data</Body>
-          )}
-        </Card>
-
-        <Card>
-          <Label>Performance</Label>
-          {isValue(score) ? (
-            <>
-              <Heading style={{ fontSize: 56, marginTop: 8 }}>{Math.round(score.value.total)}</Heading>
-              <View style={{ marginTop: 12, gap: 6 }}>
-                {score.value.components.map((component) => (
-                  <View key={component.key} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Body style={{ color: theme.color.muted }}>{component.label}</Body>
-                    <Strong>{Units.formatPercent(component.score)}</Strong>
-                  </View>
-                ))}
-              </View>
-            </>
-          ) : (
-            <Body style={{ marginTop: 8 }}>Not enough data</Body>
-          )}
-        </Card>
+        <RecordedCompletionCard
+          footnote="These bars are this session’s stored interval math. Missing inputs stay empty."
+          tracks={recorded.tracks}
+          scoreParts={recorded.scoreParts}
+          workRest={recorded.workRest}
+          intervals={recorded.intervals}
+        />
 
         <Card>
           <Label>Best / weakest interval</Label>
@@ -152,25 +125,6 @@ export default function SummaryScreen() {
               / {metrics.weakestInterval.value.plannedSeconds}s
             </Body>
           ) : null}
-        </Card>
-
-        <Card>
-          <Label>Planned vs actual</Label>
-          <View style={{ marginTop: 12, gap: 14 }}>
-            {work.map((row) => (
-              <View key={row.id} style={{ gap: 6 }}>
-                <Strong>{row.exerciseNameSnapshot.toUpperCase()}</Strong>
-                {plannedActualRows(row).map((pair) => (
-                  <View key={`${row.id}-${pair.metric}`} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Body style={{ color: theme.color.muted }}>
-                      Planned {pair.planned}
-                    </Body>
-                    <Strong>Actual {pair.actual}</Strong>
-                  </View>
-                ))}
-              </View>
-            ))}
-          </View>
         </Card>
 
         <Card>

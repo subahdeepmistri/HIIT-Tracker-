@@ -4,6 +4,8 @@ import {
   calculateLiveProgress,
   formatIntervalProgressDetail,
   formatWorkoutProgressDetail,
+  liveRoundCompletion,
+  liveTargetProgress,
 } from '../src/engine/workout/liveProgress';
 
 describe('calculateLiveProgress', () => {
@@ -61,5 +63,30 @@ describe('progress labels', () => {
   it('formats planned versus elapsed seconds without rounding the plan away', () => {
     expect(formatIntervalProgressDetail(12_400, 40)).toBe('12s / 40s');
     expect(formatWorkoutProgressDetail(8, 30)).toBe('8 / 30');
+  });
+});
+
+describe('liveRoundCompletion', () => {
+  it('stays empty until a planned round exists', () => {
+    expect(liveRoundCompletion('WORK', 1, 0)).toEqual({ value: null, detail: 'Not enough data' });
+  });
+
+  it('counts finished rounds, not the round the athlete is currently in', () => {
+    expect(liveRoundCompletion('COUNTDOWN', 1, 3)).toEqual({ value: 0, detail: '0 / 3' });
+    expect(liveRoundCompletion('WORK', 1, 3)).toEqual({ value: 0, detail: '0 / 3' });
+    expect(liveRoundCompletion('ROUND_COMPLETE', 2, 3)).toEqual({ value: 1 / 3, detail: '1 / 3' });
+    expect(liveRoundCompletion('WORK', 2, 3)).toEqual({ value: 1 / 3, detail: '1 / 3' });
+    expect(liveRoundCompletion('COMPLETED', 3, 3)).toEqual({ value: 1, detail: '3 / 3' });
+  });
+});
+
+describe('liveTargetProgress', () => {
+  it('treats a recorded zero as empty fill, not missing data', () => {
+    expect(liveTargetProgress(0, 20)).toEqual({ value: 0, detail: '0 / 20' });
+  });
+
+  it('does not invent a bar when the plan has no target', () => {
+    expect(liveTargetProgress(8, undefined)).toEqual({ value: null, detail: 'Not enough data' });
+    expect(liveTargetProgress(8, 0)).toEqual({ value: null, detail: 'Not enough data' });
   });
 });

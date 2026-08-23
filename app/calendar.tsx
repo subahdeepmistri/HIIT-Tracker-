@@ -86,12 +86,43 @@ export default function CalendarScreen() {
           {sessions.length === 0 ? (
             <Body style={{ marginTop: 8 }}>No recorded workout this day.</Body>
           ) : (
-            sessions.map((session) => (
-              <Pressable key={session.id} onPress={() => router.push(`/history/${session.id}`)} style={{ marginTop: 10 }}>
-                <Strong>{session.workoutNameSnapshot}</Strong>
-                <Body style={{ color: theme.color.muted }}>{session.status}</Body>
-              </Pressable>
-            ))
+            sessions.map((session) => {
+              const record = db.performance.getBySession(session.id);
+              const fill =
+                record?.workCompletionPercent != null
+                  ? Math.min(1, Math.max(0, record.workCompletionPercent / 100))
+                  : 0;
+              return (
+                <Pressable key={session.id} onPress={() => router.push(`/history/${session.id}`)} style={{ marginTop: 10 }}>
+                  <Strong>{session.workoutNameSnapshot}</Strong>
+                  <Body style={{ color: theme.color.muted }}>{session.status}</Body>
+                  <View
+                    accessible
+                    accessibilityRole="progressbar"
+                    accessibilityLabel={`${session.workoutNameSnapshot} work completion`}
+                    accessibilityValue={
+                      record?.workCompletionPercent != null
+                        ? { min: 0, max: 100, now: Math.round(fill * 100) }
+                        : { text: 'Not enough data' }
+                    }
+                    style={{
+                      height: 6,
+                      borderRadius: theme.radius.pill,
+                      backgroundColor: theme.color.surface2,
+                      overflow: 'hidden',
+                      marginTop: 8,
+                    }}>
+                    <View
+                      style={{
+                        width: `${fill * 100}%`,
+                        height: '100%',
+                        backgroundColor: record?.workCompletionPercent != null ? theme.color.accent : 'transparent',
+                      }}
+                    />
+                  </View>
+                </Pressable>
+              );
+            })
           )}
           <View style={{ marginTop: 12 }}>
             <Button label="Mark rest day" variant="ghost" onPress={() => void db.trainingDays.markRest(selected)} />

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +12,22 @@ import {
 } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
+
+const iosShadow = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.08,
+  shadowRadius: 8,
+};
+const androidElevation = {
+  elevation: 3,
+};
+
+function getElevationStyle(): ViewStyle {
+  if (Platform.OS === 'ios') return iosShadow;
+  if (Platform.OS === 'android') return androidElevation;
+  return {};
+}
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   const theme = useTheme();
@@ -79,22 +96,39 @@ export function Strong({ children, style, ...rest }: TextProps) {
   );
 }
 
-export function Card({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+export function Card({
+  children,
+  style,
+  interactive,
+  onPress,
+  accent,
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle;
+  interactive?: boolean;
+  onPress?: () => void;
+  accent?: boolean;
+}) {
   const theme = useTheme();
+  const baseStyle: ViewStyle = {
+    backgroundColor: theme.color.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: accent ? theme.color.accent : theme.color.line,
+    padding: theme.space[20],
+    ...(interactive || onPress ? getElevationStyle() : {}),
+  };
   return (
-    <View
-      style={[
-        {
-          backgroundColor: theme.color.surface,
-          borderRadius: theme.radius.lg,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.color.line,
-          padding: theme.space[20],
-        },
+    <Pressable
+      accessibilityRole={interactive ? 'button' : undefined}
+      onPress={onPress}
+      style={({ pressed }) => [
+        baseStyle,
+        interactive && { opacity: pressed ? 0.85 : 1 },
         style,
       ]}>
       {children}
-    </View>
+    </Pressable>
   );
 }
 
@@ -152,6 +186,7 @@ export function Button({
         borderWidth: variant === 'ghost' ? 1 : 0,
         borderColor: theme.color.line,
         opacity: disabled ? 0.45 : pressed ? 0.82 : 1,
+        ...getElevationStyle(),
       })}>
       {loading ? (
         <ActivityIndicator color={color} />

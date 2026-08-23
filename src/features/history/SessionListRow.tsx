@@ -9,16 +9,20 @@ export function SessionListRow({
   title,
   subtitle,
   badge,
+  completion,
   onOpen,
   onDelete,
 }: {
   title: string;
   subtitle: string;
   badge?: string;
+  completion?: number | null;
   onOpen: () => void;
   onDelete: () => void;
 }) {
   const theme = useTheme();
+  const hasCompletion = completion != null && Number.isFinite(completion);
+  const fill = hasCompletion ? Math.min(1, Math.max(0, completion)) : 0;
 
   return (
     <View
@@ -39,6 +43,28 @@ export function SessionListRow({
         {badge ? <Label>{badge}</Label> : null}
         <Strong style={{ marginTop: badge ? 4 : 0 }}>{title}</Strong>
         <Body style={{ color: theme.color.muted, marginTop: 4 }}>{subtitle}</Body>
+        <View
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={`${title} work completion`}
+          accessibilityValue={
+            hasCompletion ? { min: 0, max: 100, now: Math.round(fill * 100) } : { text: 'Not enough data' }
+          }
+          style={{
+            height: 6,
+            borderRadius: theme.radius.pill,
+            backgroundColor: theme.color.surface2,
+            overflow: 'hidden',
+            marginTop: 10,
+          }}>
+          <View
+            style={{
+              width: `${fill * 100}%`,
+              height: '100%',
+              backgroundColor: hasCompletion ? theme.color.accent : 'transparent',
+            }}
+          />
+        </View>
       </Pressable>
       <Pressable
         onPress={onDelete}

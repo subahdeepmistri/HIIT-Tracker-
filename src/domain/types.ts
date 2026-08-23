@@ -189,10 +189,16 @@ export interface PerformanceRecord {
   plannedWorkSeconds: number;
   plannedRestSeconds: number;
   plannedReps?: number;
+  plannedIntervals?: number;
+  plannedRounds?: number;
+  plannedDistanceMeters?: number;
+  actualDistanceMeters?: number;
   totalReps?: number;
   workCompletionPercent?: number;
   repCompletionPercent?: number;
   intervalCompletionRate?: number;
+  roundCompletionPercent?: number;
+  distanceCompletionPercent?: number;
   workRestRatio?: number;
   performanceScore?: number;
   bestIntervalId?: IntervalId;
