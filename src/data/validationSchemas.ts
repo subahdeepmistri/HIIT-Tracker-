@@ -19,7 +19,7 @@ const idSchema = z.string().min(1);
 const difficultySchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 
 // Raw schemas without branded type constraints (validated at boundary)
-const ExerciseSchema = z.object({
+export const ExerciseSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
   category: z.enum([
@@ -39,7 +39,7 @@ const ExerciseSchema = z.object({
   updatedAt: z.number().int().positive(),
 });
 
-const WorkoutSchema = z.object({
+export const WorkoutSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
   notes: z.string(),
@@ -49,7 +49,7 @@ const WorkoutSchema = z.object({
   updatedAt: z.number().int().positive(),
 });
 
-const WorkoutExerciseSchema = z.object({
+export const WorkoutExerciseSchema = z.object({
   id: idSchema,
   workoutId: idSchema,
   exerciseId: idSchema,
@@ -63,7 +63,7 @@ const WorkoutExerciseSchema = z.object({
   notes: z.string().optional(),
 });
 
-const WorkoutSessionSchema = z.object({
+export const WorkoutSessionSchema = z.object({
   id: idSchema,
   workoutId: idSchema,
   workoutNameSnapshot: z.string(),
@@ -80,7 +80,7 @@ const WorkoutSessionSchema = z.object({
   heartRateSamplesJson: z.string().nullable().optional(),
 });
 
-const IntervalSessionSchema = z.object({
+export const IntervalSessionSchema = z.object({
   id: idSchema,
   sessionId: idSchema,
   exerciseId: idSchema,
@@ -100,7 +100,7 @@ const IntervalSessionSchema = z.object({
   outcome: z.enum(['COMPLETED', 'SKIPPED', 'PARTIAL', 'CANCELLED']),
 });
 
-const PerformanceRecordSchema = z.object({
+export const PerformanceRecordSchema = z.object({
   id: idSchema,
   sessionId: idSchema,
   workoutId: idSchema,
@@ -130,7 +130,7 @@ const PerformanceRecordSchema = z.object({
   weakestIntervalId: z.string().optional(),
 });
 
-const PersonalRecordSchema = z.object({
+export const PersonalRecordSchema = z.object({
   id: idSchema,
   kind: z.enum([
     'LONGEST_WORK_INTERVAL',
@@ -149,7 +149,7 @@ const PersonalRecordSchema = z.object({
   earnedAt: z.number().int().positive(),
 });
 
-const TrainingDaySchema = z.object({
+export const TrainingDaySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   status: z.enum(['COMPLETED', 'PARTIAL', 'MISSED', 'REST', 'NONE']),
   sessionIds: z.array(idSchema),

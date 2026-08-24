@@ -19,6 +19,7 @@ export function ProgressDots({
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel={`Step ${index + 1} of ${total}`}
+      accessibilityValue={{ min: 1, max: total, now: index + 1 }}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}>
       {Array.from({ length: total }, (_, dot) => {
         const active = dot <= index;

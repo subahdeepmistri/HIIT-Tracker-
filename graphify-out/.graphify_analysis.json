@@ -237,44 +237,6 @@
       "tests_navigation_test"
     ],
     "4": [
-      "src_data_validateddatabase_validateddatabase",
-      "src_data_validateddatabase_validateddatabase_clearlastsaveerror",
-      "src_data_validateddatabase_validateddatabase_constructor",
-      "src_data_validateddatabase_validateddatabase_exercises",
-      "src_data_validateddatabase_validateddatabase_flush",
-      "src_data_validateddatabase_validateddatabase_getlastsaveerror",
-      "src_data_validateddatabase_validateddatabase_getquarantinedrows",
-      "src_data_validateddatabase_validateddatabase_importall",
-      "src_data_validateddatabase_validateddatabase_init",
-      "src_data_validateddatabase_validateddatabase_intervals",
-      "src_data_validateddatabase_validateddatabase_ismigrationrequired",
-      "src_data_validateddatabase_validateddatabase_listeners",
-      "src_data_validateddatabase_validateddatabase_loadsnapshot",
-      "src_data_validateddatabase_validateddatabase_markdirty",
-      "src_data_validateddatabase_validateddatabase_notifyintervalslisteners",
-      "src_data_validateddatabase_validateddatabase_notifysessionslisteners",
-      "src_data_validateddatabase_validateddatabase_notifysettingslisteners",
-      "src_data_validateddatabase_validateddatabase_onstorageevent",
-      "src_data_validateddatabase_validateddatabase_performance",
-      "src_data_validateddatabase_validateddatabase_records",
-      "src_data_validateddatabase_validateddatabase_repair",
-      "src_data_validateddatabase_validateddatabase_save",
-      "src_data_validateddatabase_validateddatabase_savesnapshot",
-      "src_data_validateddatabase_validateddatabase_scheduleflush",
-      "src_data_validateddatabase_validateddatabase_sessions",
-      "src_data_validateddatabase_validateddatabase_settings",
-      "src_data_validateddatabase_validateddatabase_snapshot",
-      "src_data_validateddatabase_validateddatabase_subscribe",
-      "src_data_validateddatabase_validateddatabase_subscribelivesession",
-      "src_data_validateddatabase_validateddatabase_subscribesnapshot",
-      "src_data_validateddatabase_validateddatabase_trainingdays",
-      "src_data_validateddatabase_validateddatabase_user",
-      "src_data_validateddatabase_validateddatabase_validateintegrity",
-      "src_data_validateddatabase_validateddatabase_validateloadedsnapshot",
-      "src_data_validateddatabase_validateddatabase_workouts",
-      "src_data_validationschemas_validatesnapshot"
-    ],
-    "5": [
       "app_onboarding_onboardingscreen",
       "app_onboarding_onboardingscreen_completeandgo",
       "app_onboarding_onboardingscreen_skipsetup",
@@ -309,7 +271,7 @@
       "tests_onboarding_test",
       "tests_onboarding_test_settings"
     ],
-    "6": [
+    "5": [
       "app",
       "app_adaptiveicon_backgroundcolor",
       "app_adaptiveicon_backgroundimage",
@@ -343,7 +305,7 @@
       "app_web_shortname",
       "app_web_themecolor"
     ],
-    "7": [
+    "6": [
       "src_ui_charts_linechart_linechart",
       "src_ui_components_formprimitives",
       "src_ui_components_formprimitives_baseinputprops",
@@ -377,7 +339,7 @@
       "src_ui_components_trendcard_trendpoint",
       "src_ui_components_trendcard_trendsparkline"
     ],
-    "8": [
+    "7": [
       "app_summary_sessionid",
       "app_summary_sessionid_texthero",
       "app_workouts_builder",
@@ -408,6 +370,38 @@
       "src_ui_components_workrestsplit",
       "src_ui_components_workrestsplit_workrestsplit",
       "src_ui_theme_themeprovider_usetheme"
+    ],
+    "8": [
+      "src_data_validateddatabase_validateddatabase",
+      "src_data_validateddatabase_validateddatabase_clearlastsaveerror",
+      "src_data_validateddatabase_validateddatabase_constructor",
+      "src_data_validateddatabase_validateddatabase_deleteworkoutdata",
+      "src_data_validateddatabase_validateddatabase_exercises",
+      "src_data_validateddatabase_validateddatabase_flush",
+      "src_data_validateddatabase_validateddatabase_getlastsaveerror",
+      "src_data_validateddatabase_validateddatabase_getquarantinedrows",
+      "src_data_validateddatabase_validateddatabase_intervals",
+      "src_data_validateddatabase_validateddatabase_ismigrationrequired",
+      "src_data_validateddatabase_validateddatabase_listeners",
+      "src_data_validateddatabase_validateddatabase_markdirty",
+      "src_data_validateddatabase_validateddatabase_notifyintervalslisteners",
+      "src_data_validateddatabase_validateddatabase_notifysessionslisteners",
+      "src_data_validateddatabase_validateddatabase_notifysettingslisteners",
+      "src_data_validateddatabase_validateddatabase_onstorageevent",
+      "src_data_validateddatabase_validateddatabase_performance",
+      "src_data_validateddatabase_validateddatabase_records",
+      "src_data_validateddatabase_validateddatabase_repair",
+      "src_data_validateddatabase_validateddatabase_scheduleflush",
+      "src_data_validateddatabase_validateddatabase_sessions",
+      "src_data_validateddatabase_validateddatabase_settings",
+      "src_data_validateddatabase_validateddatabase_snapshot",
+      "src_data_validateddatabase_validateddatabase_subscribe",
+      "src_data_validateddatabase_validateddatabase_subscribelivesession",
+      "src_data_validateddatabase_validateddatabase_subscribesnapshot",
+      "src_data_validateddatabase_validateddatabase_trainingdays",
+      "src_data_validateddatabase_validateddatabase_user",
+      "src_data_validateddatabase_validateddatabase_validateintegrity",
+      "src_data_validateddatabase_validateddatabase_workouts"
     ],
     "9": [
       "app_history_sessionid",
@@ -807,16 +801,6 @@
       "scripts_build_pwa_icons_save_png"
     ],
     "31": [
-      "src_data_validateddatabase_validateddatabase_deleteworkoutdata",
-      "src_data_validateddatabase_validateddatabase_loadlivesession",
-      "src_data_validateddatabase_validateddatabase_notifylivelisteners",
-      "src_data_validateddatabase_validateddatabase_notifysnapshotlisteners",
-      "src_data_validateddatabase_validateddatabase_savelivesession",
-      "src_data_validateddatabase_validateddatabase_setupstorageeventlisteners",
-      "src_data_validationschemas_validateenginestate",
-      "src_engine_workout_statemachine_deserializeengine"
-    ],
-    "32": [
       "app_workouts_builder_builderscreen_save",
       "src_domain_index",
       "src_domain_validation",
@@ -825,7 +809,7 @@
       "src_domain_validation_validateworkoutdraft",
       "src_domain_validation_validationresult"
     ],
-    "33": [
+    "32": [
       "src_application_workoutcontroller_workoutcontroller_discard",
       "src_application_workoutcontroller_workoutcontroller_finalize",
       "src_application_workoutcontroller_workoutcontroller_flushintervals",
@@ -834,7 +818,25 @@
       "src_engine_workout_statemachine_createidlestate",
       "src_engine_workout_statemachine_serializeengine"
     ],
+    "33": [
+      "src_data_validateddatabase_validateddatabase_importall",
+      "src_data_validateddatabase_validateddatabase_init",
+      "src_data_validateddatabase_validateddatabase_loadsnapshot",
+      "src_data_validateddatabase_validateddatabase_save",
+      "src_data_validateddatabase_validateddatabase_savesnapshot",
+      "src_data_validateddatabase_validateddatabase_validateloadedsnapshot",
+      "src_data_validationschemas_validatesnapshot"
+    ],
     "34": [
+      "src_data_validateddatabase_validateddatabase_loadlivesession",
+      "src_data_validateddatabase_validateddatabase_notifylivelisteners",
+      "src_data_validateddatabase_validateddatabase_notifysnapshotlisteners",
+      "src_data_validateddatabase_validateddatabase_savelivesession",
+      "src_data_validateddatabase_validateddatabase_setupstorageeventlisteners",
+      "src_data_validationschemas_validateenginestate",
+      "src_engine_workout_statemachine_deserializeengine"
+    ],
+    "35": [
       "src_engine_workout_trackinglabel",
       "src_engine_workout_trackinglabel_exercisetrackingline",
       "src_engine_workout_trackinglabel_librarytrackingline",
@@ -842,144 +844,135 @@
       "src_engine_workout_trackinglabel_plannedactualrows",
       "src_engine_workout_trackinglabel_trimactual"
     ],
-    "35": [
+    "36": [
       "src_sync_port",
       "src_sync_port_noopsync",
       "src_sync_port_syncport",
       "src_sync_port_syncport_pull",
       "src_sync_port_syncport_push"
     ],
-    "36": [
+    "37": [
       "components_usecolorscheme_web",
       "components_usecolorscheme_web_rationale_1",
       "components_usecolorscheme_web_usecolorscheme"
     ],
-    "37": [
+    "38": [
       "app_html",
       "app_html_root"
     ],
-    "38": [
+    "39": [
       "components_useclientonlyvalue",
       "components_useclientonlyvalue_useclientonlyvalue"
     ],
-    "39": [
+    "40": [
       "components_useclientonlyvalue_web",
       "components_useclientonlyvalue_web_useclientonlyvalue"
     ],
-    "40": [
+    "41": [
       "components_usecolorscheme",
       "components_usecolorscheme_usecolorscheme"
     ],
-    "41": [
+    "42": [
       "expo",
       "package_dependencies_expo"
     ],
-    "42": [
+    "43": [
       "expo_constants",
       "package_dependencies_expo_constants"
     ],
-    "43": [
+    "44": [
       "expo_file_system",
       "package_dependencies_expo_file_system"
     ],
-    "44": [
+    "45": [
       "expo_google_fonts_barlow",
       "package_dependencies_expo_google_fonts_barlow"
     ],
-    "45": [
+    "46": [
       "expo_google_fonts_barlow_condensed",
       "package_dependencies_expo_google_fonts_barlow_condensed"
     ],
-    "46": [
+    "47": [
       "expo_keep_awake",
       "package_dependencies_expo_keep_awake"
     ],
-    "47": [
+    "48": [
       "expo_linking",
       "package_dependencies_expo_linking"
     ],
-    "48": [
+    "49": [
       "expo_sharing",
       "package_dependencies_expo_sharing"
     ],
-    "49": [
+    "50": [
       "expo_status_bar",
       "package_dependencies_expo_status_bar"
     ],
-    "50": [
+    "51": [
       "expo_symbols",
       "package_dependencies_expo_symbols"
     ],
-    "51": [
+    "52": [
       "expo_vector_icons",
       "package_dependencies_expo_vector_icons"
     ],
-    "52": [
+    "53": [
       "expo_web_browser",
       "package_dependencies_expo_web_browser"
     ],
-    "53": [
+    "54": [
       "lucide_react_native",
       "package_dependencies_lucide_react_native"
     ],
-    "54": [
+    "55": [
       "package_dependencies_expo_haptics",
       "package_json_expo_haptics"
     ],
-    "55": [
+    "56": [
       "package_dependencies_react",
       "react"
     ],
-    "56": [
+    "57": [
       "package_dependencies_react_native",
       "react_native"
     ],
-    "57": [
+    "58": [
       "package_dependencies_react_native_async_storage_async_storage",
       "react_native_async_storage_async_storage"
     ],
-    "58": [
+    "59": [
       "package_dependencies_react_native_reanimated",
       "react_native_reanimated"
     ],
-    "59": [
+    "60": [
       "package_dependencies_react_native_screens",
       "react_native_screens"
     ],
-    "60": [
+    "61": [
       "package_dependencies_react_native_svg",
       "react_native_svg"
     ],
-    "61": [
+    "62": [
       "package_dependencies_react_native_web",
       "react_native_web"
     ],
-    "62": [
+    "63": [
       "package_dependencies_react_native_worklets",
       "react_native_worklets"
     ],
-    "63": [
+    "64": [
       "package_dependencies_zustand",
       "zustand"
     ],
-    "64": [
+    "65": [
       "public_sw",
       "public_sw_precache"
     ],
-    "65": [
+    "66": [
       "tests_pwa_test",
       "tests_pwa_test_root"
     ],
-    "66": [
-      "expo_av_expo_av"
-    ],
     "67": [
-      "expo_haptics_expo_haptics"
-    ],
-    "68": [
-      "expo_notifications_expo_notifications"
-    ],
-    "69": [
       "vitest_config"
     ]
   },
@@ -988,11 +981,11 @@
     "1": 0.08051948051948052,
     "2": 0.13240418118466898,
     "3": 0.09759759759759759,
-    "4": 0.0761904761904762,
-    "5": 0.13636363636363635,
-    "6": 0.0625,
-    "7": 0.10080645161290322,
-    "8": 0.135632183908046,
+    "4": 0.13636363636363635,
+    "5": 0.0625,
+    "6": 0.10080645161290322,
+    "7": 0.135632183908046,
+    "8": 0.0896551724137931,
     "9": 0.1746031746031746,
     "10": 0.22666666666666666,
     "11": 0.17391304347826086,
@@ -1015,13 +1008,13 @@
     "28": 0.3111111111111111,
     "29": 0.2857142857142857,
     "30": 0.42857142857142855,
-    "31": 0.32142857142857145,
+    "31": 0.3333333333333333,
     "32": 0.3333333333333333,
-    "33": 0.3333333333333333,
-    "34": 0.4666666666666667,
-    "35": 0.4,
-    "36": 0.6666666666666666,
-    "37": 1.0,
+    "33": 0.2857142857142857,
+    "34": 0.3333333333333333,
+    "35": 0.4666666666666667,
+    "36": 0.4,
+    "37": 0.6666666666666666,
     "38": 1.0,
     "39": 1.0,
     "40": 1.0,
@@ -1051,9 +1044,7 @@
     "64": 1.0,
     "65": 1.0,
     "66": 1.0,
-    "67": 1.0,
-    "68": 1.0,
-    "69": 1.0
+    "67": 1.0
   },
   "gods": [
     {
@@ -1109,15 +1100,15 @@
   ],
   "surprises": [
     {
-      "source": "MiniStat()",
-      "target": "useTheme()",
+      "source": "tinyPlan()",
+      "target": "asId()",
       "source_files": [
-        "app/(tabs)/index.tsx",
-        "src/ui/theme/ThemeProvider.tsx"
+        "tests/offline.test.ts",
+        "src/domain/ids.ts"
       ],
       "confidence": "EXTRACTED",
       "relation": "calls",
-      "why": "connects across different repos/directories; bridges separate communities; peripheral node `MiniStat()` unexpectedly reaches hub `useTheme()`"
+      "why": "connects across different repos/directories; bridges separate communities; peripheral node `tinyPlan()` unexpectedly reaches hub `asId()`"
     },
     {
       "source": "patch()",
@@ -1131,17 +1122,6 @@
       "why": "connects across different repos/directories; bridges separate communities; peripheral node `patch()` unexpectedly reaches hub `syncReminders()`"
     },
     {
-      "source": "Toggle()",
-      "target": "useTheme()",
-      "source_files": [
-        "app/(tabs)/profile.tsx",
-        "src/ui/theme/ThemeProvider.tsx"
-      ],
-      "confidence": "EXTRACTED",
-      "relation": "calls",
-      "why": "connects across different repos/directories; bridges separate communities; peripheral node `Toggle()` unexpectedly reaches hub `useTheme()`"
-    },
-    {
       "source": "Stepper()",
       "target": "useTheme()",
       "source_files": [
@@ -1153,15 +1133,26 @@
       "why": "connects across different repos/directories; bridges separate communities; peripheral node `Stepper()` unexpectedly reaches hub `useTheme()`"
     },
     {
-      "source": "Field()",
+      "source": "Toggle()",
       "target": "useTheme()",
       "source_files": [
-        "app/exercises/create.tsx",
+        "app/(tabs)/profile.tsx",
         "src/ui/theme/ThemeProvider.tsx"
       ],
       "confidence": "EXTRACTED",
       "relation": "calls",
-      "why": "connects across different repos/directories; bridges separate communities; peripheral node `Field()` unexpectedly reaches hub `useTheme()`"
+      "why": "connects across different repos/directories; bridges separate communities; peripheral node `Toggle()` unexpectedly reaches hub `useTheme()`"
+    },
+    {
+      "source": "ConceptCard()",
+      "target": "useTheme()",
+      "source_files": [
+        "app/onboarding.tsx",
+        "src/ui/theme/ThemeProvider.tsx"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities; peripheral node `ConceptCard()` unexpectedly reaches hub `useTheme()`"
     }
   ],
   "tokens": {

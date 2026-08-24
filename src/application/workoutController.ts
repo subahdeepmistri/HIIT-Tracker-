@@ -31,10 +31,41 @@ import {
 } from '../engine/workout/stateMachine';
 import { scoreFromMetrics } from '../engine/score/performanceScore';
 import { applyPersonalRecords, detectPersonalRecords } from '../engine/records/personalRecords';
-import type { ValidatedDatabase } from '../data/validatedDatabase';
+
+/**
+ * The narrow database surface the controller actually needs, expressed
+ * structurally so any StoragePort implementation satisfies it — the controller
+ * must never know about AsyncStorage or a concrete class.
+ */
+export interface ControllerDatabase {
+  sessions: {
+    list(): WorkoutSession[];
+    get(id: SessionId): WorkoutSession | undefined;
+    upsert(session: WorkoutSession, options?: { notify?: boolean }): Promise<void>;
+    delete(id: SessionId): Promise<void>;
+  };
+  intervals: {
+    listBySession(id: SessionId): IntervalSession[];
+    replaceSession(
+      id: SessionId,
+      rows: IntervalSession[],
+      options?: { notify?: boolean },
+    ): Promise<void>;
+  };
+  performance: {
+    upsert(record: PerformanceRecord): Promise<void>;
+  };
+  records: {
+    list(): PersonalRecord[];
+    replaceAll(rows: PersonalRecord[]): Promise<void>;
+  };
+  trainingDays: {
+    syncFromSessions(sessions: WorkoutSession[]): Promise<void>;
+  };
+}
 
 export interface ControllerDeps {
-  db: ValidatedDatabase;
+  db: ControllerDatabase;
   clock?: Clock;
   persistLive?: (json: string | null) => Promise<void>;
   loadLive?: () => Promise<string | null>;
@@ -47,6 +78,13 @@ export class WorkoutController {
   private persistQueued = false;
   private persistInFlight = false;
   private lastPersistedJson: string | null = null;
+  /**
+   * Cheap structural signature checked BEFORE serialisation. Ticks that change
+   * no persisted-relevant field skip the 100KB+ JSON.stringify entirely
+   * (F-B fix). Covers every field persistLiveOnly writes: status, phase,
+   * slot, closed intervals, live reps/distance, pause bookkeeping, deadlines.
+   */
+  private lastPersistedSig: string | null = null;
 
   constructor(private readonly deps: ControllerDeps) {
     this.clock = deps.clock ?? new SystemClock();
@@ -171,17 +209,13 @@ const session: WorkoutSession = {
     this.state = createIdleState();
     this.persistQueued = false;
     this.lastPersistedJson = null;
+    this.lastPersistedSig = null;
     await this.deps.persistLive?.(null);
     while (this.persistInFlight) {
       await Promise.resolve();
     }
     if (id) {
-      if (typeof this.deps.db.sessions.delete === 'function') {
-        await this.deps.db.sessions.delete(id);
-      } else {
-        await this.deps.db.intervals.removeBySession(id);
-        await this.deps.db.sessions.remove(id);
-      }
+      await this.deps.db.sessions.delete(id);
     }
   }
 
@@ -209,10 +243,17 @@ const session: WorkoutSession = {
       if (!liveId || this.state.status === 'IDLE' || this.state.status === 'CANCELLED') {
         if (this.lastPersistedJson !== null) {
           this.lastPersistedJson = null;
+          this.lastPersistedSig = null;
           await this.deps.persistLive?.(null);
         }
         return;
       }
+      const sig =
+        `${this.state.status}|${this.state.phase}|${this.state.slotIndex}|${this.state.intervals.length}` +
+        `|${this.state.currentReps}|${this.state.currentDistance}|${this.state.totalPausedMs}` +
+        `|${this.state.pausedAt ?? '-'}|${this.state.targetEndAt}|${this.state.endedAt ?? '-'}`;
+      if (sig === this.lastPersistedSig && this.lastPersistedJson !== null) return;
+      this.lastPersistedSig = sig;
       const json = serializeEngine(this.state);
       if (json === this.lastPersistedJson) return;
       this.lastPersistedJson = json;

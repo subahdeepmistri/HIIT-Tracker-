@@ -1,14 +1,16 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useKeepAwake } from 'expo-keep-awake';
 import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 
 import { WorkoutController } from '../../application/workoutController';
-import { DEFAULTS } from '../../config/defaults';
 import { getValidatedDatabase, type ValidatedDatabase } from '../../data/validatedDatabase';
 import type { UserSettings } from '../../domain/types';
 import { listenForWebInstall } from '../../pwa/install';
 import { registerWebApp } from '../../pwa/register';
 import { ConfirmProvider } from '../../ui/ConfirmProvider';
+import {
+  PersistenceBanner,
+  type PersistenceStatus,
+} from '../../ui/components/PersistenceBanner';
 import { VoltThemeProvider, useVoltFonts } from '../../ui/theme/ThemeProvider';
 
 interface VoltContextValue {
@@ -18,6 +20,7 @@ interface VoltContextValue {
   controller: WorkoutController;
   settings: UserSettings;
   lastSaveError: string | null;
+  storageStatus: PersistenceStatus;
   clearLastSaveError: () => void;
   refresh: () => void;
 }
@@ -30,15 +33,20 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
   const [revision, setRevision] = useState(0);
   const [settings, setSettings] = useState<UserSettings>({} as UserSettings);
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+  const [storageStatus, setStorageStatus] = useState<PersistenceStatus>({
+    ok: true,
+    failure: null,
+    source: 'snapshot',
+  });
 
   const db = useMemo(() => getValidatedDatabase(), []);
 
   const controller = useMemo(
     () =>
       new WorkoutController({
-        db: db as any, // TODO: update WorkoutController to use StoragePort
+        db,
         persistLive: async (json) => {
-          await db.saveLiveSession(json as any);
+          await db.saveLiveSession(json as never);
         },
         loadLive: async () => {
           const state = await db.loadLiveSession();
@@ -68,9 +76,11 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
       setSettings(db.settings.get());
       setRevision((v) => v + 1);
     });
-    // Live session changes
-    const unsubLive = db.subscribeLiveSession(() => {
-      // Trigger re-render for live screen
+    // Whole-snapshot changes: cross-tab reloadFromStorage, importAll, repair.
+    // The data layer owns the window 'storage' listener; this only reacts.
+    const unsubSnapshot = db.subscribe(() => {
+      setSettings(db.settings.get());
+      setRevision((v) => v + 1);
     });
 
     // Check for save errors periodically
@@ -79,34 +89,17 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
       if (err && err !== lastSaveError) {
         setLastSaveError(err);
       }
+      setStorageStatus(db.getStorageStatus());
     }, 1000);
 
     return () => {
       mounted = false;
       unsubSessions();
       unsubSettings();
-      unsubLive();
+      unsubSnapshot();
       clearInterval(errorCheck);
     };
   }, []);
-
-  // Cross-tab sync: listen for storage events on the main DB key
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleStorage = async (event: StorageEvent) => {
-      if (event.key === DEFAULTS.storageKey || event.key === DEFAULTS.legacyStorageKey) {
-        await db.init();
-        setSettings(db.settings.get());
-        setRevision((v) => v + 1);
-      }
-      if (event.key === DEFAULTS.sessionPersistKey || event.key === DEFAULTS.legacySessionPersistKey) {
-        const state = await db.loadLiveSession();
-        // Live session change will be picked up by subscribeLiveSession
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, [db]);
 
   const value = useMemo(
     () => ({
@@ -116,13 +109,14 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
       controller,
       settings,
       lastSaveError,
+      storageStatus,
       clearLastSaveError: () => {
         db.clearLastSaveError();
         setLastSaveError(null);
       },
       refresh: () => setRevision((v) => v + 1),
     }),
-    [ready, controller, settings, lastSaveError, db, revision],
+    [ready, controller, settings, lastSaveError, storageStatus, db, revision],
   );
 
   useLayoutEffect(() => {
@@ -136,7 +130,10 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
   return (
     <VoltContext.Provider value={value}>
       <VoltThemeProvider preference={settings.theme}>
-        <ConfirmProvider>{children}</ConfirmProvider>
+        <ConfirmProvider>
+          <PersistenceBanner status={storageStatus} />
+          {children}
+        </ConfirmProvider>
       </VoltThemeProvider>
     </VoltContext.Provider>
   );

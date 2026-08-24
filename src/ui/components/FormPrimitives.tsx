@@ -39,7 +39,7 @@ export function Input({
           placeholderTextColor={placeholderTextColor ?? theme.color.muted}
           style={[
             styles.input,
-            hasError && styles.inputError,
+            hasError && { borderColor: theme.color.danger },
             { color: theme.color.text, backgroundColor: theme.color.surface } as TextStyle,
             props.style,
           ] as const}
@@ -70,7 +70,7 @@ export function TextArea({
   return (
     <View style={[{ marginBottom: 6 }, style]}>
       {label && <Label>{label}</Label>}
-      <View style={[styles.textAreaWrapper, hasError && styles.inputError]}>
+      <View style={[styles.textAreaWrapper, hasError && { borderColor: theme.color.danger }]}>
         <TextInput
           {...(props as any)}
           multiline
@@ -122,7 +122,7 @@ export function Select({
   return (
     <View style={{ marginBottom: 6 }}>
       {label && <Label>{label}</Label>}
-      <View style={[styles.selectWrapper, hasError && styles.inputError]}>
+      <View style={[styles.selectWrapper, hasError && { borderColor: theme.color.danger }]}>
         <TextInput
           value={options.find((o) => o.value === value)?.label ?? ''}
           editable={false}
@@ -317,9 +317,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 48,
   },
-  inputError: {
-    borderColor: '#EF4444',
-  },
+  inputWrapperBase: {} as const,
+  // NOTE: error borders use theme.color.danger inline (light/dark aware);
+  // the old fixed #EF4444 style was removed in the Phase 8 a11y audit.
   input: {
     flex: 1,
     fontSize: 16,

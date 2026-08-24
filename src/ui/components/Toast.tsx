@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Platform, Pressable } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
@@ -65,8 +65,10 @@ const variantStyles: Record<ToastVariant, { bg: string; border: string; icon: st
 function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () => void }) {
   const theme = useTheme();
   const style = variantStyles[toast.variant];
-  const fadeAnim = new Animated.Value(0);
-  const slideAnim = new Animated.Value(20);
+  // Stable across re-renders — recreating Animated.Values per render leaks
+  // running animation nodes and restarts the entrance fade.
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -99,6 +101,9 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
 
   return (
     <Animated.View
+      accessible
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
       style={[
         styles.container,
         { backgroundColor: style.bg, borderColor: style.border },

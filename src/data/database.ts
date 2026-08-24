@@ -18,13 +18,48 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from '../domain/types';
-import { applySessionDelete } from './deleteSession';
 import { applyMigrations } from './migrate';
+import {
+  appendQuarantine,
+  sanitizeSnapshotRows,
+  type QuarantineEntry,
+} from './quarantine';
+import { classifyStorageError, safeParse, safeStringify, type StorageFailure } from './serialize';
 import { DB_VERSION, type VoltSnapshot } from './schema';
 import { CATALOG_EXERCISES } from './seed/exercises';
 import { STARTER_WORKOUT_EXERCISES, STARTER_WORKOUTS } from './seed/workouts';
+import type { RepoContext } from './repositories/context';
+import { createExerciseRepo, type ExerciseRepo } from './repositories/exerciseRepo';
+import { createWorkoutRepo, type WorkoutRepo } from './repositories/workoutRepo';
+import { createSessionRepo, type SessionRepo } from './repositories/sessionRepo';
+import { createIntervalRepo, type IntervalRepo } from './repositories/intervalRepo';
+import {
+  createPerformanceRepo,
+  type PerformanceRepo,
+} from './repositories/performanceRepo';
+import { createRecordsRepo, type RecordsRepo } from './repositories/recordsRepo';
+import {
+  createTrainingDayRepo,
+  type TrainingDayRepo,
+} from './repositories/trainingDayRepo';
+import {
+  createSettingsRepo,
+  createUserRepo,
+  type SettingsRepo,
+  type UserRepo,
+} from './repositories/settingsRepo';
 
 const STORAGE_KEY = DEFAULTS.storageKey;
+const LEGACY_STORAGE_KEY = DEFAULTS.legacyStorageKey;
+const BACKUP_KEY = `${STORAGE_KEY}:pre-migration-backup`;
+export const QUARANTINE_KEY = DEFAULTS.quarantineKey;
+
+/** Minimal async KV contract — AsyncStorage today, a future API client later. */
+export interface KeyValueStore {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+}
 
 export function defaultSettings(): UserSettings {
   return {
@@ -59,231 +94,303 @@ export function emptySnapshot(): VoltSnapshot {
   };
 }
 
+export interface InitOutcome {
+  source: 'fresh' | 'loaded' | 'recovered' | 'corrupt';
+  quarantined: number;
+}
+
+/**
+ * Owns the snapshot lifecycle and the single write queue; collection CRUD
+ * lives in repositories composed below. The public surface is identical to
+ * the pre-split class — callers cannot tell the difference.
+ */
 export class VoltDatabase {
   snapshot: VoltSnapshot = emptySnapshot();
   private ready = false;
   private listeners_ = new Set<() => void>();
+  private kv: KeyValueStore;
+
+  /** Ordered single-flight write chain — setItem calls can never interleave or reorder. */
+  private writeQueue: Promise<void> = Promise.resolve();
+
   private lastSaveError: string | null = null;
+  private lastSaveFailure: StorageFailure | null = null;
+  private lastInitOutcome: InitOutcome = { source: 'fresh', quarantined: 0 };
+  private quarantinedRows: QuarantineEntry[] = [];
+
+  private readonly ctx: RepoContext;
+
+  readonly exercises: ExerciseRepo;
+  readonly workouts: WorkoutRepo;
+  readonly sessions: SessionRepo;
+  readonly intervals: IntervalRepo;
+  readonly performance: PerformanceRepo;
+  readonly records: RecordsRepo;
+  readonly trainingDays: TrainingDayRepo;
+  readonly settings: SettingsRepo;
+  readonly user: UserRepo;
+
+  constructor(kv?: KeyValueStore) {
+    this.kv = kv ?? (AsyncStorage as unknown as KeyValueStore);
+    const self: VoltDatabase = this;
+    this.ctx = {
+      snapshot: () => self.snapshot,
+      setSnapshot: (next) => {
+        self.snapshot = next;
+      },
+      save: (options) => self.save(options),
+    };
+    this.exercises = createExerciseRepo(this.ctx);
+    this.workouts = createWorkoutRepo(this.ctx);
+    this.sessions = createSessionRepo(this.ctx);
+    this.intervals = createIntervalRepo(this.ctx);
+    this.performance = createPerformanceRepo(this.ctx);
+    this.records = createRecordsRepo(this.ctx);
+    this.trainingDays = createTrainingDayRepo(this.ctx);
+    this.settings = createSettingsRepo(this.ctx);
+    this.user = createUserRepo(this.ctx);
+  }
 
   get listeners(): Set<() => void> {
     return this.listeners_;
   }
 
-  readonly exercises = {
-    list: () => this.snapshot.exercises.filter((row) => true),
-    get: (id: Exercise['id']) => this.snapshot.exercises.find((row) => row.id === id),
-    upsert: async (exercise: Exercise) => {
-      const index = this.snapshot.exercises.findIndex((row) => row.id === exercise.id);
-      if (index >= 0) this.snapshot.exercises[index] = exercise;
-      else this.snapshot.exercises.push(exercise);
-      await this.save();
-    },
-    search: (query: string, category?: Exercise['category']) => {
-      const q = query.trim().toLowerCase();
-      return this.snapshot.exercises.filter((row) => {
-        if (category && row.category !== category) return false;
-        if (!q) return true;
-        return (
-          row.name.toLowerCase().includes(q) ||
-          row.category.toLowerCase().includes(q) ||
-          row.instructions.toLowerCase().includes(q)
-        );
-      });
-    },
-  };
+  getLastInitOutcome(): InitOutcome {
+    return this.lastInitOutcome;
+  }
 
-  readonly workouts = {
-    list: () => this.snapshot.workouts.filter((row) => !row.isArchived),
-    get: (id: WorkoutId) => this.snapshot.workouts.find((row) => row.id === id),
-    plan: (id: WorkoutId): WorkoutPlan | null => {
-      const workout = this.snapshot.workouts.find((row) => row.id === id);
-      if (!workout) return null;
-      const items = this.snapshot.workoutExercises
-        .filter((row) => row.workoutId === id)
-        .sort((a, b) => a.orderIndex - b.orderIndex)
-        .map((row) => {
-          const exercise = this.snapshot.exercises.find((item) => item.id === row.exerciseId);
-          if (!exercise) return null;
-          return { ...row, exercise };
-        })
-        .filter((row): row is WorkoutExercise & { exercise: Exercise } => row != null);
-      return { workout, exercises: items };
-    },
-    upsert: async (workout: Workout, items: WorkoutExercise[]) => {
-      const index = this.snapshot.workouts.findIndex((row) => row.id === workout.id);
-      if (index >= 0) this.snapshot.workouts[index] = workout;
-      else this.snapshot.workouts.push(workout);
-      this.snapshot.workoutExercises = [
-        ...this.snapshot.workoutExercises.filter((row) => row.workoutId !== workout.id),
-        ...items,
-      ];
-      await this.save();
-    },
-    archive: async (id: WorkoutId) => {
-      const workout = this.snapshot.workouts.find((row) => row.id === id);
-      if (!workout) return;
-      workout.isArchived = true;
-      workout.updatedAt = Date.now();
-      await this.save();
-    },
-  };
-
-  readonly sessions = {
-    list: () => [...this.snapshot.sessions].sort((a, b) => (b.endedAt ?? b.startedAt) - (a.endedAt ?? a.startedAt)),
-    get: (id: SessionId) => this.snapshot.sessions.find((row) => row.id === id),
-    inProgress: () => this.snapshot.sessions.find((row) => row.status === 'IN_PROGRESS'),
-    upsert: async (session: WorkoutSession, options?: { notify?: boolean }) => {
-      const index = this.snapshot.sessions.findIndex((row) => row.id === session.id);
-      if (index >= 0) this.snapshot.sessions[index] = session;
-      else this.snapshot.sessions.push(session);
-      await this.save(options);
-    },
-    remove: async (id: SessionId) => {
-      this.snapshot.sessions = this.snapshot.sessions.filter((row) => row.id !== id);
-      await this.save();
-    },
-    delete: async (id: SessionId) => {
-      this.snapshot = applySessionDelete(this.snapshot, id);
-      await this.save();
-    },
-  };
-
-  readonly intervals = {
-    listBySession: (id: SessionId) =>
-      this.snapshot.intervals
-        .filter((row) => row.sessionId === id)
-        .sort((a, b) => a.startedAt - b.startedAt),
-    replaceSession: async (id: SessionId, rows: IntervalSession[], options?: { notify?: boolean }) => {
-      this.snapshot.intervals = [...this.snapshot.intervals.filter((row) => row.sessionId !== id), ...rows];
-      await this.save(options);
-    },
-    removeBySession: async (id: SessionId) => {
-      this.snapshot.intervals = this.snapshot.intervals.filter((row) => row.sessionId !== id);
-      await this.save();
-    },
-  };
-
-  readonly performance = {
-    getBySession: (id: SessionId) => this.snapshot.performanceRecords.find((row) => row.sessionId === id),
-    list: () => [...this.snapshot.performanceRecords].sort((a, b) => b.createdAt - a.createdAt),
-    upsert: async (record: PerformanceRecord) => {
-      const index = this.snapshot.performanceRecords.findIndex((row) => row.id === record.id);
-      if (index >= 0) this.snapshot.performanceRecords[index] = record;
-      else this.snapshot.performanceRecords.push(record);
-      await this.save();
-    },
-  };
-
-  readonly records = {
-    list: () => this.snapshot.personalRecords,
-    replaceAll: async (rows: PersonalRecord[]) => {
-      this.snapshot.personalRecords = rows;
-      await this.save();
-    },
-  };
-
-  readonly trainingDays = {
-    list: () => this.snapshot.trainingDays,
-    markRest: async (date: string) => {
-      const existing = this.snapshot.trainingDays.find((row) => row.date === date);
-      if (existing) existing.status = 'REST';
-      else this.snapshot.trainingDays.push({ date, status: 'REST', sessionIds: [] });
-      await this.save();
-    },
-    syncFromSessions: async (sessions: WorkoutSession[]) => {
-      const byDate = new Map<string, WorkoutSession[]>();
-      for (const session of sessions) {
-        if (session.status === 'CANCELLED' || session.status === 'IN_PROGRESS') continue;
-        const date = localDateKey(session.endedAt ?? session.startedAt);
-        const list = byDate.get(date) ?? [];
-        list.push(session);
-        byDate.set(date, list);
-      }
-      const restDays = this.snapshot.trainingDays.filter((row) => row.status === 'REST' && !byDate.has(row.date));
-      const next: TrainingDay[] = restDays;
-      for (const [date, list] of byDate) {
-        const status: TrainingDayStatus = list.some((row) => row.status === 'COMPLETED')
-          ? 'COMPLETED'
-          : 'PARTIAL';
-        next.push({ date, status, sessionIds: list.map((row) => row.id) });
-      }
-      this.snapshot.trainingDays = next;
-      await this.save();
-    },
-  };
-
-  readonly settings = {
-    get: () => this.snapshot.settings,
-    update: async (patch: Partial<UserSettings>) => {
-      this.snapshot.settings = { ...this.snapshot.settings, ...patch };
-      await this.save();
-    },
-  };
-
-  readonly user = {
-    get: () => this.snapshot.user,
-    update: async (patch: Partial<User>) => {
-      this.snapshot.user = { ...this.snapshot.user, ...patch };
-      await this.save();
-    },
-  };
+  getQuarantinedRows(): QuarantineEntry[] {
+    return [...this.quarantinedRows];
+  }
 
   subscribe(listener: () => void): () => void {
     this.listeners_.add(listener);
     return () => this.listeners_.delete(listener);
   }
 
-  async init(): Promise<void> {
-    if (this.ready) return;
+  private async readRawSnapshot(): Promise<{ raw: string | null }> {
+    let raw: string | null = null;
     try {
-      const raw =
-        (await AsyncStorage.getItem(STORAGE_KEY)) ??
-        (await AsyncStorage.getItem(DEFAULTS.legacyStorageKey));
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<VoltSnapshot> & { version?: number };
-        const incomingVersion = parsed.version ?? 1;
-        const baseSnapshot = emptySnapshot();
-        const merged: VoltSnapshot = {
-          ...baseSnapshot,
-          ...parsed,
-          version: incomingVersion,
-          settings: { ...defaultSettings(), ...parsed.settings },
-          user: { ...baseSnapshot.user, ...parsed.user },
-          exercises: parsed.exercises && parsed.exercises.length > 0 ? parsed.exercises : baseSnapshot.exercises,
-          workouts: parsed.workouts && parsed.workouts.length > 0 ? parsed.workouts : baseSnapshot.workouts,
-          workoutExercises: parsed.workoutExercises && parsed.workoutExercises.length > 0 ? parsed.workoutExercises : baseSnapshot.workoutExercises,
-        };
-        this.snapshot = applyMigrations(merged);
-        const needsWrite =
-          this.snapshot.version !== incomingVersion || !(await AsyncStorage.getItem(STORAGE_KEY));
-        if (needsWrite) {
-          await this.save();
-        }
-      } else {
-        this.snapshot = emptySnapshot();
-        await this.save();
-      }
+      raw = await this.kv.getItem(STORAGE_KEY);
     } catch {
-      this.snapshot = emptySnapshot();
+      raw = null;
     }
+    if (!raw) {
+      try {
+        raw = await this.kv.getItem(LEGACY_STORAGE_KEY);
+      } catch {
+        raw = null;
+      }
+    }
+    return { raw };
+  }
+
+  /**
+   * One-time bootstrap. Loads, validates per-row (quarantining bad rows),
+   * migrates forward with a best-effort pre-migration backup, and seeds an
+   * explicit fresh install when nothing readable exists.
+   */
+  async init(): Promise<InitOutcome> {
+    if (this.ready) return this.lastInitOutcome;
+    const outcome: InitOutcome = { source: 'fresh', quarantined: 0 };
+
+    const { raw } = await this.readRawSnapshot();
+
+    if (raw == null) {
+      // Explicit empty state: fresh install is intended behaviour, not an error.
+      this.snapshot = emptySnapshot();
+      await this.save({ notify: false });
+      this.ready = true;
+      this.lastInitOutcome = outcome;
+      return outcome;
+    }
+
+    const parsed = safeParse<unknown>(raw);
+    if (!parsed.ok) {
+      // Corrupt payload: start clean but keep the bytes for recovery/inspection.
+      outcome.source = 'corrupt';
+      this.snapshot = emptySnapshot();
+      await this.persistRecoveryArtifact(`${STORAGE_KEY}:corrupt-backup`, raw);
+      await this.save({ notify: false });
+      this.ready = true;
+      this.lastInitOutcome = outcome;
+      return outcome;
+    }
+
+    const sanitized = sanitizeSnapshotRows(parsed.value);
+    outcome.quarantined = sanitized.quarantined.length;
+    outcome.source = sanitized.version == null ? 'recovered' : 'loaded';
+
+    const incomingVersion =
+      sanitized.version != null && Number.isFinite(sanitized.version) ? sanitized.version : 1;
+
+    const base = emptySnapshot();
+    const merged: VoltSnapshot = {
+      version: incomingVersion as VoltSnapshot['version'],
+      user: this.mergeUser(base.user, parsed.value),
+      settings: { ...defaultSettings(), ...this.readSettingish(parsed.value) },
+      exercises: sanitized.collections.exercises.length > 0 ? sanitized.collections.exercises : base.exercises,
+      workouts: sanitized.collections.workouts.length > 0 ? sanitized.collections.workouts : base.workouts,
+      workoutExercises:
+        sanitized.collections.workoutExercises.length > 0
+          ? sanitized.collections.workoutExercises
+          : base.workoutExercises,
+      sessions: sanitized.collections.sessions,
+      intervals: sanitized.collections.intervals,
+      performanceRecords: sanitized.collections.performanceRecords,
+      personalRecords: sanitized.collections.personalRecords,
+      trainingDays: sanitized.collections.trainingDays,
+    };
+
+    // Best-effort backup of the exact pre-migration bytes, so a migration bug
+    // can never destroy the only copy of the user's history.
+    if (incomingVersion < DB_VERSION) {
+      await this.persistRecoveryArtifact(BACKUP_KEY, raw);
+    }
+
+    this.snapshot = applyMigrations(merged);
+
+    if (sanitized.quarantined.length > 0) {
+      this.quarantinedRows = sanitized.quarantined;
+      void appendQuarantine(this.kv, QUARANTINE_KEY, sanitized.quarantined);
+    }
+
+    await this.save({ notify: false });
     this.ready = true;
+    this.lastInitOutcome = outcome;
+    return outcome;
+  }
+
+  private mergeUser(fallbackBase: VoltSnapshot['user'], parsed: unknown): VoltSnapshot['user'] {
+    const candidate =
+      parsed != null && typeof parsed === 'object' ? (parsed as Record<string, unknown>).user : undefined;
+    if (candidate == null || typeof candidate !== 'object') return fallbackBase;
+    const record = candidate as Record<string, unknown>;
+    if (typeof record.id !== 'string' || record.id.length === 0) return fallbackBase;
+    return {
+      ...fallbackBase,
+      ...(candidate as Partial<VoltSnapshot['user']>),
+      // Boundary cast: the schema layer guarantees this is a non-empty string;
+      // the brand exists only at compile time.
+      id: record.id as VoltSnapshot['user']['id'],
+    };
+  }
+
+  private readSettingish(parsed: unknown): Partial<UserSettings> | undefined {
+    const candidate =
+      parsed != null && typeof parsed === 'object' ? (parsed as Record<string, unknown>).settings : undefined;
+    if (candidate == null || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined;
+    return candidate as Partial<UserSettings>;
+  }
+
+  private async persistRecoveryArtifact(key: string, raw: string): Promise<void> {
+    try {
+      await this.kv.setItem(key, raw);
+    } catch {
+      // Recovery artifacts are best-effort by design.
+    }
+  }
+
+  /**
+   * Cross-tab path: apply a freshly-read storage value into the live instance
+   * without the init()-early-return trap and without echoing a write back
+   * unless migration changed the version.
+   */
+  async reloadFromStorage(rawOverride?: string | null): Promise<'applied' | 'ignored' | 'fresh'> {
+    const { raw } =
+      rawOverride !== undefined ? { raw: rawOverride } : await this.readRawSnapshot();
+
+    if (raw == null) {
+      // Another context cleared storage. Mirror the clear honestly.
+      this.snapshot = emptySnapshot();
+      this.notify();
+      return 'fresh';
+    }
+
+    const parsed = safeParse<unknown>(raw);
+    if (!parsed.ok) return 'ignored'; // Keep current in-memory state; ignore corrupt external event.
+
+    const sanitized = sanitizeSnapshotRows(parsed.value);
+    const incomingVersion =
+      sanitized.version != null && Number.isFinite(sanitized.version) ? sanitized.version : 1;
+    const base = emptySnapshot();
+    const merged: VoltSnapshot = {
+      version: incomingVersion as VoltSnapshot['version'],
+      user: this.mergeUser(base.user, parsed.value),
+      settings: { ...defaultSettings(), ...this.readSettingish(parsed.value) },
+      exercises: sanitized.collections.exercises.length > 0 ? sanitized.collections.exercises : base.exercises,
+      workouts: sanitized.collections.workouts.length > 0 ? sanitized.collections.workouts : base.workouts,
+      workoutExercises:
+        sanitized.collections.workoutExercises.length > 0
+          ? sanitized.collections.workoutExercises
+          : base.workoutExercises,
+      sessions: sanitized.collections.sessions,
+      intervals: sanitized.collections.intervals,
+      performanceRecords: sanitized.collections.performanceRecords,
+      personalRecords: sanitized.collections.personalRecords,
+      trainingDays: sanitized.collections.trainingDays,
+    };
+
+    if (incomingVersion < DB_VERSION) await this.persistRecoveryArtifact(BACKUP_KEY, raw);
+    const migrated = applyMigrations(merged);
+
+    if (sanitized.quarantined.length > 0) {
+      this.quarantinedRows = sanitized.quarantined;
+      void appendQuarantine(this.kv, QUARANTINE_KEY, sanitized.quarantined);
+    }
+
+    const serializedNow = safeStringify(migrated);
+    const serializedStored = safeStringify(parsed.value);
+    this.snapshot = migrated;
+    this.notify();
+    if (
+      !serializedNow.ok ||
+      !serializedStored.ok ||
+      serializedNow.json !== serializedStored.json
+    ) {
+      await this.performSave({ notify: false });
+    }
+    return 'applied';
   }
 
   async save(options?: { notify?: boolean }): Promise<{ success: boolean; error?: string }> {
+    const run = this.writeQueue.then(() => this.performSave(options));
+    this.writeQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  /** Flush any pending queued write; resolves once every requested save has landed. */
+  async flushWrites(): Promise<void> {
+    await this.writeQueue;
+  }
+
+  private notify(): void {
+    this.listeners_.forEach((listener) => listener());
+  }
+
+  private async performSave(options?: { notify?: boolean }): Promise<{ success: boolean; error?: string }> {
+    const serialized = safeStringify(this.snapshot);
+    if (!serialized.ok) {
+      // Never write data that would be unreadable or silently mangled later.
+      this.lastSaveFailure = { kind: 'serialize', message: serialized.reason };
+      this.lastSaveError = `Failed to serialise snapshot: ${serialized.reason}`;
+      if (options?.notify !== false) this.notify();
+      return { success: false, error: this.lastSaveError };
+    }
     try {
-      const json = JSON.stringify(this.snapshot);
-      await AsyncStorage.setItem(STORAGE_KEY, json);
+      await this.kv.setItem(STORAGE_KEY, serialized.json);
       this.lastSaveError = null;
-      if (options?.notify !== false) {
-        this.listeners_.forEach((listener) => listener());
-      }
+      this.lastSaveFailure = null;
+      if (options?.notify !== false) this.notify();
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown storage error';
-      this.lastSaveError = `Failed to save: ${message}`;
-      if (options?.notify !== false) {
-        this.listeners_.forEach((listener) => listener());
-      }
+      const failure = classifyStorageError(error);
+      this.lastSaveFailure = failure;
+      this.lastSaveError = `Failed to save (${failure.kind}): ${failure.message}`;
+      if (options?.notify !== false) this.notify();
       return { success: false, error: this.lastSaveError };
     }
   }
@@ -292,8 +399,13 @@ export class VoltDatabase {
     return this.lastSaveError;
   }
 
+  getLastSaveFailure(): StorageFailure | null {
+    return this.lastSaveFailure;
+  }
+
   clearLastSaveError(): void {
     this.lastSaveError = null;
+    this.lastSaveFailure = null;
   }
 
   async deleteWorkoutData(): Promise<void> {
@@ -306,8 +418,8 @@ export class VoltDatabase {
     this.snapshot.workouts = STARTER_WORKOUTS.map((row) => ({ ...row }));
     this.snapshot.workoutExercises = STARTER_WORKOUT_EXERCISES.map((row) => ({ ...row }));
     await Promise.all([
-      AsyncStorage.removeItem(DEFAULTS.sessionPersistKey),
-      AsyncStorage.removeItem(DEFAULTS.legacySessionPersistKey),
+      this.kv.removeItem(DEFAULTS.sessionPersistKey).catch(() => undefined),
+      this.kv.removeItem(DEFAULTS.legacySessionPersistKey).catch(() => undefined),
     ]);
     await this.save();
   }

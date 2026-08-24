@@ -13,6 +13,7 @@ export const DEFAULTS = {
   legacyStorageKey: '@volt/db',
   sessionPersistKey: '@hiit-tracker/live-session',
   legacySessionPersistKey: '@volt/live-session',
+  quarantineKey: '@hiit-tracker/quarantine',
 } as const;
 
 export const AUDIO_DEFAULTS = {

@@ -3,7 +3,14 @@ import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Units } from '@/src/domain/units';
-import { dashboardStats, filterSessions, type RangeKey, trendPoints } from '@/src/engine/analytics/dashboard';
+import type { IntervalSession } from '@/src/domain/types';
+import {
+  dashboardStats,
+  filterSessions,
+  indexPerformance,
+  trendPointSets,
+  type RangeKey,
+} from '@/src/engine/analytics/dashboard';
 import { aggregateSessionProgress, buildSessionProgress } from '@/src/engine/analytics/sessionProgress';
 import { formatRecordValue, recordKindLabel } from '@/src/engine/records/personalRecords';
 import { recoveryGuidance } from '@/src/engine/recovery/guidance';
@@ -13,6 +20,8 @@ import { RecordedCompletionCard } from '@/src/ui/components/RecordedCompletion';
 import { Body, Card, EmptyState, Heading, Label, SegmentedControl, Stat, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 
+const EMPTY_INTERVALS: IntervalSession[] = [];
+
 export default function ProgressScreen() {
   const theme = useTheme();
   const { db } = useVolt();
@@ -20,27 +29,51 @@ export default function ProgressScreen() {
   const now = Date.now();
   const allSessions = db.sessions.list();
   const allPerformance = db.performance.list();
+  // One O(I) grouping pass per render replaces repeated full-interval scans.
+  const intervalsBySession = new Map<string, IntervalSession[]>();
+  for (const row of db.intervals.listAll()) {
+    const list = intervalsBySession.get(row.sessionId);
+    if (list) list.push(row);
+    else intervalsBySession.set(row.sessionId, [row]);
+  }
+  const intervalsFor = (sessionId: string): IntervalSession[] =>
+    intervalsBySession.get(sessionId) ?? EMPTY_INTERVALS;
+
   const sessions = filterSessions(allSessions, range, now);
-  const performance = allPerformance.filter((row) => sessions.some((session) => session.id === row.sessionId));
+  // O(p) map join replaces the O(n·p) `.some()` filter.
+  const perfById = indexPerformance(allPerformance);
+  const performance = sessions
+    .map((s) => perfById.get(s.id))
+    .filter((row): row is NonNullable<typeof row> => row != null);
+
   const stats = dashboardStats(sessions, performance, now);
   const recorded = aggregateSessionProgress(
     sessions.map((session) =>
-      buildSessionProgress(session, db.intervals.listBySession(session.id), session.endedAt ?? now),
+      buildSessionProgress(session, intervalsFor(session.id), session.endedAt ?? now),
     ),
   );
   const guidance = recoveryGuidance(
-    allSessions.map((session) => ({ session, intervals: db.intervals.listBySession(session.id) })),
+    allSessions.map((session) => ({ session, intervals: intervalsFor(session.id) })),
     now,
   );
   const records = db.records.list();
   const emptyRange = stats.sessionsRecorded === 0;
-  const durationTrend = trendPoints(allSessions, allPerformance, range, now, 'duration');
-  const completionTrend = trendPoints(allSessions, allPerformance, range, now, 'completion');
-  const activeTrend = trendPoints(allSessions, allPerformance, range, now, 'active');
-  const restTrend = trendPoints(allSessions, allPerformance, range, now, 'rest');
-  const repsTrend = trendPoints(allSessions, allPerformance, range, now, 'reps');
-  const scoreTrend = trendPoints(allSessions, allPerformance, range, now, 'score');
-  const distanceTrend = trendPoints(allSessions, allPerformance, range, now, 'distance');
+  const trends = trendPointSets(allSessions, allPerformance, range, now, [
+    'duration',
+    'completion',
+    'active',
+    'rest',
+    'reps',
+    'score',
+    'distance',
+  ]);
+  const durationTrend = trends.duration;
+  const completionTrend = trends.completion;
+  const activeTrend = trends.active;
+  const restTrend = trends.rest;
+  const repsTrend = trends.reps;
+  const scoreTrend = trends.score;
+  const distanceTrend = trends.distance;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bg }} edges={['top']}>

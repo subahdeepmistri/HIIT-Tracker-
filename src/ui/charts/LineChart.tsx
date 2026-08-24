@@ -3,13 +3,11 @@ import { View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 import { Units } from '../../domain/units';
+import type { ChartPoint } from '../../domain/chart';
 import { Body } from '../components/primitives';
 import { useTheme } from '../theme/ThemeProvider';
 
-export interface ChartPoint {
-  label: string;
-  value: number;
-}
+export type { ChartPoint };
 
 export function LineChart({
   points,

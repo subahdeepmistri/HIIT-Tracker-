@@ -2,7 +2,7 @@ import { densityLabel, type WorkDensityLabel } from '../../config/density';
 import { localDateKey } from '../../domain/date';
 import { isValue } from '../../domain/metrics';
 import type { IntervalSession, PerformanceRecord, WorkoutSession } from '../../domain/types';
-import type { ChartPoint } from '../../ui/charts/LineChart';
+import type { ChartPoint } from '../../domain/chart';
 import { calculateSessionMetrics } from '../calc/metrics';
 import { performanceScore, type ScoreComponent } from '../score/performanceScore';
 
@@ -195,41 +195,77 @@ export function weekStats(sessions: WorkoutSession[], performance: PerformanceRe
   return dashboardStats(week, weekPerf, now);
 }
 
+export type TrendField = 'duration' | 'completion' | 'active' | 'rest' | 'reps' | 'score' | 'distance';
+
 export function trendPoints(
   sessions: WorkoutSession[],
   performance: PerformanceRecord[],
   range: RangeKey,
   now: number,
-  field: 'duration' | 'completion' | 'active' | 'rest' | 'reps' | 'score' | 'distance',
+  field: TrendField,
 ): ChartPoint[] {
-  const selected = filterSessions(sessions, range, now);
-  return selected
+  return trendPointSets(sessions, performance, range, now, [field])[field];
+}
+
+/**
+ * All trend series in one filtered+sorted pass (F-C fix): ProgressScreen used
+ * to call trendPoints seven times, re-filtering sessions and re-joining
+ * performance records each time.
+ */
+export function trendPointSets(
+  sessions: WorkoutSession[],
+  performance: PerformanceRecord[],
+  range: RangeKey,
+  now: number,
+  fields: readonly TrendField[],
+): Record<TrendField, ChartPoint[]> {
+  const selected = filterSessions(sessions, range, now)
     .slice()
-    .sort((a, b) => (a.endedAt ?? a.startedAt) - (b.endedAt ?? b.startedAt))
-    .map((session) => {
-      const record = performance.find((row) => row.sessionId === session.id);
-      const at = session.endedAt ?? session.startedAt;
-      const label = localDateKey(at).slice(5);
-      if (!record) return null;
-      if (field === 'duration') return { label, value: record.totalDurationSeconds };
-      if (field === 'completion') {
-        if (record.workCompletionPercent == null) return null;
-        return { label, value: record.workCompletionPercent };
-      }
-      if (field === 'active') return { label, value: record.totalActiveSeconds };
-      if (field === 'rest') return { label, value: record.totalRestSeconds };
-      if (field === 'score') {
-        if (record.performanceScore == null) return null;
-        return { label, value: record.performanceScore };
-      }
-      if (field === 'distance') {
-        if (record.distanceCompletionPercent == null) return null;
-        return { label, value: record.distanceCompletionPercent };
-      }
-      if (record.totalReps == null) return null;
-      return { label, value: record.totalReps };
-    })
-    .filter((point): point is ChartPoint => point != null);
+    .sort((a, b) => (a.endedAt ?? a.startedAt) - (b.endedAt ?? b.startedAt));
+  const perfBySession = indexPerformance(performance);
+
+  const sets = {} as Record<TrendField, ChartPoint[]>;
+  for (const field of fields) sets[field] = [];
+
+  for (const session of selected) {
+    const record = perfBySession.get(session.id);
+    if (!record) continue;
+    const at = session.endedAt ?? session.startedAt;
+    const label = localDateKey(at).slice(5);
+    for (const field of fields) {
+      const point = pointForField(record, field, label);
+      if (point) sets[field].push(point);
+    }
+  }
+  return sets;
+}
+
+function pointForField(
+  record: PerformanceRecord,
+  field: TrendField,
+  label: string,
+): ChartPoint | null {
+  switch (field) {
+    case 'duration':
+      return { label, value: record.totalDurationSeconds };
+    case 'completion':
+      return record.workCompletionPercent == null ? null : { label, value: record.workCompletionPercent };
+    case 'active':
+      return { label, value: record.totalActiveSeconds };
+    case 'rest':
+      return { label, value: record.totalRestSeconds };
+    case 'score':
+      return record.performanceScore == null ? null : { label, value: record.performanceScore };
+    case 'distance':
+      return record.distanceCompletionPercent == null ? null : { label, value: record.distanceCompletionPercent };
+    case 'reps':
+      return record.totalReps == null ? null : { label, value: record.totalReps };
+  }
+}
+
+/** O(p) index replacing the O(n·p) `.some()` join in screens. */
+export function indexPerformance(performance: PerformanceRecord[]): Map<string, PerformanceRecord> {
+  return new Map(performance.map((row) => [row.sessionId, row]));
 }
 
 export function sessionMetricsSafe(session: WorkoutSession, intervals: IntervalSession[]) {

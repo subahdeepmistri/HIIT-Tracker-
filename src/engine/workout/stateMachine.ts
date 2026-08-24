@@ -205,30 +205,8 @@ export function recordDistance(state: EngineState, distance: number): EngineStat
   return { ...state, currentDistance: distance };
 }
 
-export function finish(state: EngineState, now: number, mode: 'complete' | 'partial' | 'discard'): EngineState {
-  if (mode === 'discard') {
-    return {
-      ...state,
-      status: 'CANCELLED',
-      phase: 'CANCELLED',
-      endedAt: now,
-    };
-  }
-
-  let next = state.status === 'PAUSED' ? resume(state, now) : state;
-  if (isActiveInterval(next.phase) && next.status === 'LIVE') {
-    next = closeCurrentSlot(next, now, mode === 'partial' ? 'PARTIAL' : 'PARTIAL');
-  }
-
-  return {
-    ...next,
-    status: mode === 'complete' && allWorkComplete(next) ? 'COMPLETED' : mode === 'complete' ? 'COMPLETED' : 'COMPLETED',
-    phase: mode === 'partial' ? 'COMPLETED' : 'COMPLETED',
-    endedAt: now,
-    currentReps: 0,
-    currentDistance: 0,
-  };
-}
+// NOTE: `finish` was removed (F-12) — unreachable; the controller finalizes via
+// `completeNow` / `savePartial` / tick-driven `finalizeOnce`.
 
 export function savePartial(state: EngineState, now: number): EngineState {
   let next = state.status === 'PAUSED' ? resume(state, now) : state;
@@ -427,12 +405,6 @@ function elapsedSeconds(state: EngineState, now: number): number {
 
 function isActiveInterval(phase: WorkoutPhase): boolean {
   return phase === 'WORK' || phase === 'REST' || phase === 'TRANSITION';
-}
-
-function allWorkComplete(state: EngineState): boolean {
-  const planned = state.slots.filter((slot) => slot.phase === 'WORK').length;
-  const done = state.intervals.filter((row) => row.phase === 'WORK' && row.outcome === 'COMPLETED').length;
-  return planned > 0 && done === planned;
 }
 
 function nextExerciseName(state: EngineState): string | null {

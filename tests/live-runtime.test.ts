@@ -153,6 +153,14 @@ function memoryDatabase() {
         const index = sessions.findIndex((row) => row.id === id);
         if (index >= 0) sessions.splice(index, 1);
       },
+      // Mirrors VoltDatabase.sessions.delete: cascades to child rows.
+      delete: async (id: WorkoutSession['id']) => {
+        const index = sessions.findIndex((row) => row.id === id);
+        if (index >= 0) sessions.splice(index, 1);
+        intervals.delete(id);
+        const perfIndex = performance.findIndex((row) => row.sessionId === id);
+        if (perfIndex >= 0) performance.splice(perfIndex, 1);
+      },
     },
     intervals: {
       listBySession: (id: WorkoutSession['id']) => intervals.get(id) ?? [],

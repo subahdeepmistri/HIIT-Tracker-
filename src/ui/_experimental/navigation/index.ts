@@ -1,0 +1,2 @@
+export { Tabs, TabView, TabPanel, SegmentedControl, Breadcrumbs, Pagination, StepperNav } from './Tabs';
+export type { TabItem, TabsProps, SegmentedControlProps, TabViewProps, TabPanelProps, BreadCrumbItem, BreadcrumbsProps, PaginationProps, StepperNavProps } from './Tabs';

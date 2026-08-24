@@ -1,0 +1,17 @@
+{
+  "filterSessions": 0.012,
+  "P1 perf-join OLD (.some)": 0.571,
+  "P1 perf-join NEW (Map)": 0.089,
+  "P1 speedup": 6.44,
+  "P2 analytics OLD (per-session scan)": 16.58,
+  "P2 analytics NEW (grouped map)": 1.296,
+  "P2 speedup": 12.8,
+  "P3 trends OLD (x7 calls)": 0.613,
+  "P3 trends NEW (single pass)": 0.07,
+  "P3 speedup": 8.79,
+  "dashboardStats@1000": 14.105,
+  "engine-state payload KB @late-workout": "125.2",
+  "serializeEngine(tick-path)": 0.142,
+  "setItem calls / 40 mutations": 40,
+  "bytes written / 40 mutations": 650200
+}

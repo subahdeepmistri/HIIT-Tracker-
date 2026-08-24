@@ -13,6 +13,7 @@ import { RecordedCompletionCard } from '@/src/ui/components/RecordedCompletion';
 import { Body, Button, Card, EmptyState, Heading, Label, Strong } from '@/src/ui/components/primitives';
 import { useTheme } from '@/src/ui/theme/ThemeProvider';
 import { Units } from '@/src/domain/units';
+import type { IntervalSession } from '@/src/domain/types';
 import { confirmAction } from '@/src/ui/confirm';
 
 export default function HomeScreen() {
@@ -22,10 +23,20 @@ export default function HomeScreen() {
   const [now] = useState(() => new Date());
   const sessions = db.sessions.list();
   const performance = db.performance.list();
+  const intervalsBySession = new Map<string, IntervalSession[]>();
+  for (const row of db.intervals.listAll()) {
+    const list = intervalsBySession.get(row.sessionId);
+    if (list) list.push(row);
+    else intervalsBySession.set(row.sessionId, [row]);
+  }
   const week = weekStats(sessions, performance, now.getTime());
   const weekRecorded = aggregateSessionProgress(
     filterSessions(sessions, '7', now.getTime()).map((session) =>
-      buildSessionProgress(session, db.intervals.listBySession(session.id), session.endedAt ?? now.getTime()),
+      buildSessionProgress(
+        session,
+        intervalsBySession.get(session.id) ?? [],
+        session.endedAt ?? now.getTime(),
+      ),
     ),
   );
   const workouts = db.workouts.list();

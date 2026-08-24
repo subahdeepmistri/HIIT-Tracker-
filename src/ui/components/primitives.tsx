@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '../theme/ThemeProvider';
+import { NOT_ENOUGH_DATA } from '../../domain/metrics';
 
 const iosShadow = {
   shadowColor: '#000',
@@ -173,6 +174,7 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -207,14 +209,17 @@ export function Stat({
   hint?: string;
 }) {
   const theme = useTheme();
+  const isEmpty = value === NOT_ENOUGH_DATA;
   return (
     <View style={{ flex: 1, minWidth: 96 }}>
       <Label>{label}</Label>
       <Text
+        accessibilityLabel={`${label}: ${isEmpty ? NOT_ENOUGH_DATA : value}`}
         style={{
-          fontFamily: theme.type.display,
-          color: theme.color.text,
-          fontSize: 28,
+          fontFamily: isEmpty ? theme.type.uiBook : theme.type.display,
+          color: isEmpty ? theme.color.muted : theme.color.text,
+          fontSize: isEmpty ? 16 : 28,
+          lineHeight: isEmpty ? 22 : undefined,
           marginTop: 4,
         }}>
         {value}

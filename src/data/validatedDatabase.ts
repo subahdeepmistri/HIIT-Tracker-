@@ -27,17 +27,21 @@ import type { StoragePort } from './storagePort';
 import type { EngineState } from '../engine/workout/stateMachine';
 import type { ExportPayload } from './export';
 import { VoltDatabase } from './database';
+import {
+  appendQuarantine,
+  type QuarantineEntry,
+  type QuarantineStore,
+} from './quarantine';
+import {
+  classifyStorageError,
+  safeParse,
+  safeStringify,
+  type StorageFailure,
+} from './serialize';
 
 const STORAGE_KEY = DEFAULTS.storageKey;
 const LIVE_KEY = DEFAULTS.sessionPersistKey;
 const LEGACY_LIVE_KEY = DEFAULTS.legacySessionPersistKey;
-
-interface QuarantinedRow {
-  collection: string;
-  index: number;
-  data: unknown;
-  error: string;
-}
 
 // ValidatedDatabase wraps VoltDatabase with validation and new features
 // Does NOT extend VoltDatabase to avoid private field conflicts
@@ -50,11 +54,10 @@ export class ValidatedDatabase implements StoragePort {
   private intervalsListeners = new Map<string, Set<() => void>>();
   private settingsListeners = new Set<() => void>();
   private storageEventHandlers = new Map<string, Set<(newValue: string | null) => void>>();
-  private quarantined: QuarantinedRow[] = [];
-  private dirtyCollections = new Set<string>();
-  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private quarantined: QuarantineEntry[] = [];
   private lastSaveError: string | null = null;
   private migrationRequired = false;
+  private lastLiveFailure: StorageFailure | null = null;
 
   constructor() {
     this.inner = new VoltDatabase();
@@ -87,17 +90,14 @@ export class ValidatedDatabase implements StoragePort {
       inProgress: () => innerSessions.inProgress(),
       upsert: async (session: WorkoutSession, options?: { notify?: boolean }) => {
         await innerSessions.upsert(session, options);
-        self.markDirty('sessions');
         if (options?.notify !== false) self.notifySessionsListeners();
       },
       remove: async (id: SessionId) => {
         await innerSessions.remove(id);
-        self.markDirty('sessions');
         self.notifySessionsListeners();
       },
       delete: async (id: SessionId) => {
         await innerSessions.delete(id);
-        self.markDirty('sessions');
         self.notifySessionsListeners();
       },
       subscribe: (listener: () => void) => {
@@ -111,15 +111,14 @@ export class ValidatedDatabase implements StoragePort {
     const self = this;
     const innerIntervals = this.inner.intervals;
     return {
+      listAll: () => innerIntervals.listAll(),
       listBySession: (id: SessionId) => innerIntervals.listBySession(id),
       replaceSession: async (id: SessionId, rows: IntervalSession[], options?: { notify?: boolean }) => {
         await innerIntervals.replaceSession(id, rows, options);
-        self.markDirty('intervals');
         if (options?.notify !== false) self.notifyIntervalsListeners(id);
       },
       removeBySession: async (id: SessionId) => {
         await innerIntervals.removeBySession(id);
-        self.markDirty('intervals');
         self.notifyIntervalsListeners(id);
       },
       subscribe: (sessionId: string, listener: () => void) => {
@@ -150,7 +149,6 @@ export class ValidatedDatabase implements StoragePort {
       get: () => innerSettings.get(),
       update: async (patch: Partial<UserSettings>) => {
         await innerSettings.update(patch);
-        self.markDirty('settings');
         self.notifySettingsListeners();
       },
       subscribe: (listener: () => void) => {
@@ -211,9 +209,20 @@ export class ValidatedDatabase implements StoragePort {
     try {
       const raw = await AsyncStorage.getItem(LIVE_KEY);
       if (!raw) return null;
-      const validation = validateEngineState(JSON.parse(raw));
+      const parsed = safeParse<unknown>(raw);
+      if (!parsed.ok) {
+        await this.quarantineLivePayload('live-session', parsed.reason, raw);
+        await AsyncStorage.removeItem(LIVE_KEY);
+        return null;
+      }
+      const validation = validateEngineState(parsed.value);
       if (!validation.success) {
         console.warn('[ValidatedDatabase] Live session validation failed, discarding:', validation.errors?.message);
+        await this.quarantineLivePayload(
+          'live-session',
+          validation.errors?.issues.map((i) => i.message).join('; ') ?? 'schema mismatch',
+          raw,
+        );
         await AsyncStorage.removeItem(LIVE_KEY);
         return null;
       }
@@ -223,24 +232,44 @@ export class ValidatedDatabase implements StoragePort {
     }
   }
 
+  private async quarantineLivePayload(source: string, error: string, data: unknown): Promise<void> {
+    const store: QuarantineStore = AsyncStorage as unknown as QuarantineStore;
+    await appendQuarantine(store, DEFAULTS.quarantineKey, [
+      { collection: source, index: 0, error, data, quarantinedAt: Date.now() },
+    ]);
+  }
+
   async saveLiveSession(state: EngineState | null): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (state === null) {
+    if (state === null) {
+      try {
         await AsyncStorage.removeItem(LIVE_KEY);
-        this.notifyLiveListeners(null);
-        return { success: true };
+      } catch (error) {
+        const failure = classifyStorageError(error);
+        this.lastLiveFailure = failure;
+        return { success: false, error: `Failed to clear live session (${failure.kind}): ${failure.message}` };
       }
-      const validation = validateEngineState(state);
-      if (!validation.success) {
-        return { success: false, error: `Live session validation failed: ${validation.errors?.message}` };
-      }
-      const json = JSON.stringify(validation.data);
-      await AsyncStorage.setItem(LIVE_KEY, json);
+      this.lastLiveFailure = null;
+      this.notifyLiveListeners(null);
+      return { success: true };
+    }
+    const validation = validateEngineState(state);
+    if (!validation.success) {
+      return { success: false, error: `Live session validation failed: ${validation.errors?.message}` };
+    }
+    const serialized = safeStringify(validation.data);
+    if (!serialized.ok) {
+      this.lastLiveFailure = { kind: 'serialize', message: serialized.reason };
+      return { success: false, error: `Live session serialisation failed: ${serialized.reason}` };
+    }
+    try {
+      await AsyncStorage.setItem(LIVE_KEY, serialized.json);
+      this.lastLiveFailure = null;
       this.notifyLiveListeners(validation.data as EngineState);
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown storage error';
-      return { success: false, error: `Failed to save live session: ${message}` };
+      const failure = classifyStorageError(error);
+      this.lastLiveFailure = failure;
+      return { success: false, error: `Failed to save live session (${failure.kind}): ${failure.message}` };
     }
   }
 
@@ -309,33 +338,33 @@ export class ValidatedDatabase implements StoragePort {
       if (handlers) {
         handlers.forEach((h) => h(event.newValue));
       }
+      // Apply the external write into the live instance. init() would no-op
+      // here (ready flag) and leave this tab stale — that was finding F-02.
       if (event.key === STORAGE_KEY || event.key === DEFAULTS.legacyStorageKey) {
-        this.init();
-        this.notifySnapshotListeners();
+        void this.inner.reloadFromStorage(event.newValue).then(() => {
+          this.notifySnapshotListeners();
+          this.notifySessionsListeners();
+        });
       }
       if (event.key === LIVE_KEY || event.key === LEGACY_LIVE_KEY) {
         this.loadLiveSession().then((state) => this.notifyLiveListeners(state));
       }
     };
     window.addEventListener('storage', handleStorage);
+
+    // Web tab close / background: land any queued snapshot writes.
+    const flushOnHide = () => {
+      void this.inner.flushWrites();
+    };
+    window.addEventListener('pagehide', flushOnHide);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushOnHide();
+    });
   }
 
-  private markDirty(collection: string): void {
-    this.dirtyCollections.add(collection);
-    this.scheduleFlush();
-  }
-
-  private scheduleFlush(): void {
-    if (this.flushTimer) return;
-    this.flushTimer = setTimeout(() => this.flush(), 2000);
-  }
-
-  private async flush(): Promise<void> {
-    this.flushTimer = null;
-    if (this.dirtyCollections.size === 0) return;
-    this.dirtyCollections.clear();
-    await this.inner.save({ notify: true });
-  }
+  // NOTE (F-A fix): every collection mutator persists synchronously through
+  // VoltDatabase's ordered write queue, so a debounced re-flush here only
+  // duplicated identical writes. Granular notifications below are the sole job.
 
   private notifySnapshotListeners(): void {
     this.snapshotListeners.forEach((l) => l());
@@ -371,8 +400,20 @@ export class ValidatedDatabase implements StoragePort {
     return this.migrationRequired;
   }
 
-  getQuarantinedRows(): QuarantinedRow[] {
-    return [...this.quarantined];
+  /**
+   * Honest persistence status for the UI. 'ok' means the last write landed;
+   * anything else carries a plain-language kind the interface must surface
+   * rather than hide (quota / unavailable / serialize).
+   */
+  getStorageStatus(): { ok: boolean; failure: StorageFailure | null; source: 'snapshot' | 'live' } {
+    const snapshotFailure = this.inner.getLastSaveFailure();
+    if (snapshotFailure) return { ok: false, failure: snapshotFailure, source: 'snapshot' };
+    if (this.lastLiveFailure) return { ok: false, failure: this.lastLiveFailure, source: 'live' };
+    return { ok: true, failure: null, source: 'snapshot' };
+  }
+
+  getQuarantinedRows(): QuarantineEntry[] {
+    return [...this.quarantined, ...this.inner.getQuarantinedRows()];
   }
 
   validateIntegrity(): { valid: boolean; issues: string[] } {
