@@ -464,10 +464,16 @@ function targetLabel(slot: PlannedSlot | undefined, phase: WorkoutPhase): string
   return null;
 }
 
+import { validateEngineState, type EngineStateInput } from '../../data/validationSchemas';
+
 export function serializeEngine(state: EngineState): string {
   return JSON.stringify(state);
 }
 
 export function deserializeEngine(json: string): EngineState {
-  return JSON.parse(json) as EngineState;
+  const result = validateEngineState(json);
+  if (!result.success) {
+    throw new Error(`Invalid engine state: ${result.errors?.message}`);
+  }
+  return result.data as EngineState;
 }

@@ -1,4 +1,4 @@
-import type { IntervalSession, PerformanceRecord, WorkoutSession } from '../domain/types';
+import type { Exercise, IntervalSession, PerformanceRecord, PersonalRecord, TrainingDay, User, UserSettings, Workout, WorkoutExercise, WorkoutSession } from '../domain/types';
 import { completionPercent } from '../engine/calc/completion';
 import { isValue } from '../domain/metrics';
 
@@ -15,6 +15,21 @@ export interface ExportRow {
   distance: number | '';
   completionPercentage: number | '';
   derived: boolean;
+}
+
+export interface ExportPayload {
+  exportedAt: string;
+  version: number;
+  user: User;
+  settings: UserSettings;
+  exercises: Exercise[];
+  workouts: Workout[];
+  workoutExercises: WorkoutExercise[];
+  sessions: WorkoutSession[];
+  intervals: IntervalSession[];
+  performanceRecords: PerformanceRecord[];
+  personalRecords: PersonalRecord[];
+  trainingDays: TrainingDay[];
 }
 
 export function buildExportRows(
@@ -73,15 +88,41 @@ export function toCsv(rows: ExportRow[]): string {
   return lines.join('\n');
 }
 
-export function toJson(input: {
-  exportedAt: string;
-  note: string;
-  sessions: WorkoutSession[];
-  intervals: IntervalSession[];
-  performance: PerformanceRecord[];
-  rows: ExportRow[];
-}): string {
+export function toJson(input: ExportPayload): string {
   return JSON.stringify(input, null, 2);
+}
+
+export function toCsvWithPayload(payload: ExportPayload): string {
+  const rows = buildExportRows(payload.sessions, payload.intervals);
+  return toCsv(rows);
+}
+
+export function buildExportPayload(
+  sessions: WorkoutSession[],
+  intervals: IntervalSession[],
+  performance: PerformanceRecord[],
+  personalRecords: PersonalRecord[],
+  trainingDays: TrainingDay[],
+  workouts: Workout[],
+  workoutExercises: WorkoutExercise[],
+  exercises: Exercise[],
+  user: User,
+  settings: UserSettings,
+): ExportPayload {
+  return {
+    exportedAt: new Date().toISOString(),
+    version: 2,
+    user,
+    settings,
+    exercises,
+    workouts,
+    workoutExercises,
+    sessions,
+    intervals,
+    performanceRecords: performance,
+    personalRecords,
+    trainingDays,
+  };
 }
 
 function csvEscape(value: string): string {

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, 
 
 import { WorkoutController } from '../../application/workoutController';
 import { DEFAULTS } from '../../config/defaults';
-import { db, type VoltDatabase } from '../../data/database';
+import { getValidatedDatabase, type ValidatedDatabase } from '../../data/validatedDatabase';
 import type { UserSettings } from '../../domain/types';
 import { listenForWebInstall } from '../../pwa/install';
 import { registerWebApp } from '../../pwa/register';
@@ -12,11 +12,13 @@ import { ConfirmProvider } from '../../ui/ConfirmProvider';
 import { VoltThemeProvider, useVoltFonts } from '../../ui/theme/ThemeProvider';
 
 interface VoltContextValue {
-  db: VoltDatabase;
+  db: ValidatedDatabase;
   revision: number;
   ready: boolean;
   controller: WorkoutController;
   settings: UserSettings;
+  lastSaveError: string | null;
+  clearLastSaveError: () => void;
   refresh: () => void;
 }
 
@@ -26,27 +28,24 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
   const fontsReady = useVoltFonts();
   const [ready, setReady] = useState(false);
   const [revision, setRevision] = useState(0);
-  const [settings, setSettings] = useState<UserSettings>(db.settings.get());
+  const [settings, setSettings] = useState<UserSettings>({} as UserSettings);
+  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+
+  const db = useMemo(() => getValidatedDatabase(), []);
 
   const controller = useMemo(
     () =>
       new WorkoutController({
-        db,
+        db: db as any, // TODO: update WorkoutController to use StoragePort
         persistLive: async (json) => {
-          if (json == null) {
-            await Promise.all([
-              AsyncStorage.removeItem(DEFAULTS.sessionPersistKey),
-              AsyncStorage.removeItem(DEFAULTS.legacySessionPersistKey),
-            ]);
-          } else {
-            await AsyncStorage.setItem(DEFAULTS.sessionPersistKey, json);
-          }
+          await db.saveLiveSession(json as any);
         },
-        loadLive: async () =>
-          (await AsyncStorage.getItem(DEFAULTS.sessionPersistKey)) ??
-          (await AsyncStorage.getItem(DEFAULTS.legacySessionPersistKey)),
+        loadLive: async () => {
+          const state = await db.loadLiveSession();
+          return state ? JSON.stringify(state) : null;
+        },
       }),
-    [],
+    [db],
   );
 
   useEffect(() => {
@@ -59,11 +58,55 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
       setSettings(db.settings.get());
       setReady(true);
     })();
-    return db.subscribe(() => {
-      setRevision((value) => value + 1);
+
+    // Subscribe to granular changes
+    const unsubSessions = db.sessions.subscribe(() => {
       setSettings(db.settings.get());
+      setRevision((v) => v + 1);
     });
+    const unsubSettings = db.settings.subscribe(() => {
+      setSettings(db.settings.get());
+      setRevision((v) => v + 1);
+    });
+    // Live session changes
+    const unsubLive = db.subscribeLiveSession(() => {
+      // Trigger re-render for live screen
+    });
+
+    // Check for save errors periodically
+    const errorCheck = setInterval(() => {
+      const err = db.getLastSaveError();
+      if (err && err !== lastSaveError) {
+        setLastSaveError(err);
+      }
+    }, 1000);
+
+    return () => {
+      mounted = false;
+      unsubSessions();
+      unsubSettings();
+      unsubLive();
+      clearInterval(errorCheck);
+    };
   }, []);
+
+  // Cross-tab sync: listen for storage events on the main DB key
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleStorage = async (event: StorageEvent) => {
+      if (event.key === DEFAULTS.storageKey || event.key === DEFAULTS.legacyStorageKey) {
+        await db.init();
+        setSettings(db.settings.get());
+        setRevision((v) => v + 1);
+      }
+      if (event.key === DEFAULTS.sessionPersistKey || event.key === DEFAULTS.legacySessionPersistKey) {
+        const state = await db.loadLiveSession();
+        // Live session change will be picked up by subscribeLiveSession
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [db]);
 
   const value = useMemo(
     () => ({
@@ -72,9 +115,14 @@ export function VoltRoot({ children }: { children: React.ReactNode }) {
       ready,
       controller,
       settings,
-      refresh: () => setRevision((value) => value + 1),
+      lastSaveError,
+      clearLastSaveError: () => {
+        db.clearLastSaveError();
+        setLastSaveError(null);
+      },
+      refresh: () => setRevision((v) => v + 1),
     }),
-    [revision, ready, controller, settings],
+    [ready, controller, settings, lastSaveError, db, revision],
   );
 
   useLayoutEffect(() => {

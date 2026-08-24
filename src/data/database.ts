@@ -62,8 +62,12 @@ export function emptySnapshot(): VoltSnapshot {
 export class VoltDatabase {
   snapshot: VoltSnapshot = emptySnapshot();
   private ready = false;
-  private listeners = new Set<() => void>();
+  private listeners_ = new Set<() => void>();
   private lastSaveError: string | null = null;
+
+  get listeners(): Set<() => void> {
+    return this.listeners_;
+  }
 
   readonly exercises = {
     list: () => this.snapshot.exercises.filter((row) => true),
@@ -225,8 +229,8 @@ export class VoltDatabase {
   };
 
   subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    this.listeners_.add(listener);
+    return () => this.listeners_.delete(listener);
   }
 
   async init(): Promise<void> {
@@ -271,14 +275,14 @@ export class VoltDatabase {
       await AsyncStorage.setItem(STORAGE_KEY, json);
       this.lastSaveError = null;
       if (options?.notify !== false) {
-        this.listeners.forEach((listener) => listener());
+        this.listeners_.forEach((listener) => listener());
       }
       return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown storage error';
       this.lastSaveError = `Failed to save: ${message}`;
       if (options?.notify !== false) {
-        this.listeners.forEach((listener) => listener());
+        this.listeners_.forEach((listener) => listener());
       }
       return { success: false, error: this.lastSaveError };
     }

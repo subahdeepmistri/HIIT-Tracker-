@@ -31,10 +31,10 @@ import {
 } from '../engine/workout/stateMachine';
 import { scoreFromMetrics } from '../engine/score/performanceScore';
 import { applyPersonalRecords, detectPersonalRecords } from '../engine/records/personalRecords';
-import type { VoltDatabase } from '../data/database';
+import type { ValidatedDatabase } from '../data/validatedDatabase';
 
 export interface ControllerDeps {
-  db: VoltDatabase;
+  db: ValidatedDatabase;
   clock?: Clock;
   persistLive?: (json: string | null) => Promise<void>;
   loadLive?: () => Promise<string | null>;
@@ -90,7 +90,7 @@ export class WorkoutController {
       roundCompleteSeconds: reducedMotion ? 0 : undefined,
     });
 
-    const session: WorkoutSession = {
+const session: WorkoutSession = {
       id: this.state.sessionId as SessionId,
       workoutId: plan.workout.id,
       workoutNameSnapshot: plan.workout.name,
@@ -102,7 +102,6 @@ export class WorkoutController {
       averageHeartRate: null,
       maximumHeartRate: null,
       heartRateSamplesJson: null,
-      resumePayloadJson: serializeEngine(this.state),
     };
     await this.deps.db.sessions.upsert(session);
     this.schedulePersist();
@@ -230,7 +229,6 @@ export class WorkoutController {
           ...(existing ?? this.sessionFromEngine('IN_PROGRESS')),
           id: sessionId,
           interruptedAt: status === 'LIVE' || status === 'PAUSED' ? this.clock.now() : existing?.interruptedAt,
-          resumePayloadJson: json,
           status: status === 'COMPLETED' ? (existing?.status ?? 'IN_PROGRESS') : 'IN_PROGRESS',
         },
         { notify: false },
@@ -277,7 +275,7 @@ export class WorkoutController {
     await this.deps.db.intervals.replaceSession(sessionId, rows, options);
   }
 
-  private sessionFromEngine(status: WorkoutSession['status'], endedAt?: number): WorkoutSession {
+private sessionFromEngine(status: WorkoutSession['status'], endedAt?: number): WorkoutSession {
     return {
       id: this.state.sessionId as SessionId,
       workoutId: this.state.workoutId as WorkoutId,
@@ -291,7 +289,6 @@ export class WorkoutController {
       averageHeartRate: null,
       maximumHeartRate: null,
       heartRateSamplesJson: null,
-      resumePayloadJson: status === 'IN_PROGRESS' ? serializeEngine(this.state) : undefined,
     };
   }
 

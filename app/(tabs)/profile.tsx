@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
 import { db } from '@/src/data/database';
-import { buildExportRows, toCsv, toJson } from '@/src/data/export';
+import { buildExportRows, toCsv, toJson, buildExportPayload } from '@/src/data/export';
 import { useVolt } from '@/src/features/app/VoltProvider';
 import { resetOnboarding } from '@/src/features/onboarding/logic';
 import { useWebInstall } from '@/src/pwa/install';
@@ -37,14 +37,18 @@ export default function ProfileScreen() {
     const payload =
       format === 'csv'
         ? toCsv(rows)
-        : toJson({
-            exportedAt: new Date().toISOString(),
-            note: 'completionPercentage is derived from plannedDuration and actualDuration.',
+        : toJson(buildExportPayload(
             sessions,
             intervals,
-            performance: db.performance.list(),
-            rows,
-          });
+            db.performance.list(),
+            db.records.list(),
+            db.trainingDays.list(),
+            db.workouts.list(),
+            db.workouts.list().flatMap((w) => db.workouts.plan(w.id)?.exercises.map((e) => ({ ...e, workoutId: w.id })) ?? []),
+            db.exercises.list(),
+            db.user.get(),
+            db.settings.get(),
+          ));
     const file = `${FileSystem.cacheDirectory}hiit-tracker-export.${format}`;
     await FileSystem.writeAsStringAsync(file, payload);
     if (await Sharing.isAvailableAsync()) {
